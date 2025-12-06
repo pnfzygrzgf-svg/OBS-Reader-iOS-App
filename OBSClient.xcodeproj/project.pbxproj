@@ -6,13 +6,31 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		B303A6552EE36891002D4887 /* SwiftProtobuf in Frameworks */ = {isa = PBXBuildFile; productRef = B303A6542EE36891002D4887 /* SwiftProtobuf */; };
+		B303A6572EE36891002D4887 /* SwiftProtobufPluginLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = B303A6562EE36891002D4887 /* SwiftProtobufPluginLibrary */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		B303A61D2EE33724002D4887 /* OBSClient.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OBSClient.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		B39FC1F52EE45D7300FC73A8 /* Exceptions for "OBSClient" folder in "OBSClient" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = B303A61C2EE33724002D4887 /* OBSClient */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		B303A61F2EE33724002D4887 /* OBSClient */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				B39FC1F52EE45D7300FC73A8 /* Exceptions for "OBSClient" folder in "OBSClient" target */,
+			);
 			path = OBSClient;
 			sourceTree = "<group>";
 		};
@@ -23,6 +41,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B303A6572EE36891002D4887 /* SwiftProtobufPluginLibrary in Frameworks */,
+				B303A6552EE36891002D4887 /* SwiftProtobuf in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +85,8 @@
 			);
 			name = OBSClient;
 			packageProductDependencies = (
+				B303A6542EE36891002D4887 /* SwiftProtobuf */,
+				B303A6562EE36891002D4887 /* SwiftProtobufPluginLibrary */,
 			);
 			productName = OBSClient;
 			productReference = B303A61D2EE33724002D4887 /* OBSClient.app */;
@@ -94,6 +116,9 @@
 			);
 			mainGroup = B303A6142EE33724002D4887;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				B303A6532EE36891002D4887 /* XCRemoteSwiftPackageReference "swift-protobuf" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B303A61E2EE33724002D4887 /* Products */;
 			projectDirPath = "";
@@ -186,6 +211,7 @@
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
@@ -242,6 +268,7 @@
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -251,11 +278,17 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 9LZ74RQ3F4;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = OBSClient/Info.plist;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Sensorwerte werden für die OpenBikeSensor-Aufzeichnung im Hintergrund gespeichert.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = huch;
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Deine GPS-Position wird für die OpenBikeSensor-Aufzeichnung im Hintergrund gespeichert.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Deine GPS-Position wird für die OpenBikeSensor-Aufzeichnung verwendet.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -270,7 +303,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
@@ -283,11 +316,17 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 9LZ74RQ3F4;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = OBSClient/Info.plist;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Sensorwerte werden für die OpenBikeSensor-Aufzeichnung im Hintergrund gespeichert.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = huch;
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Deine GPS-Position wird für die OpenBikeSensor-Aufzeichnung im Hintergrund gespeichert.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Deine GPS-Position wird für die OpenBikeSensor-Aufzeichnung verwendet.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -302,7 +341,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
@@ -332,6 +371,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		B303A6532EE36891002D4887 /* XCRemoteSwiftPackageReference "swift-protobuf" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-protobuf";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.33.3;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B303A6542EE36891002D4887 /* SwiftProtobuf */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B303A6532EE36891002D4887 /* XCRemoteSwiftPackageReference "swift-protobuf" */;
+			productName = SwiftProtobuf;
+		};
+		B303A6562EE36891002D4887 /* SwiftProtobufPluginLibrary */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B303A6532EE36891002D4887 /* XCRemoteSwiftPackageReference "swift-protobuf" */;
+			productName = SwiftProtobufPluginLibrary;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = B303A6152EE33724002D4887 /* Project object */;
 }
