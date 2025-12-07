@@ -1,10 +1,12 @@
 import Foundation
 import CoreLocation
 
-/// Schreibt eine OBS-CSV-Datei im Stil der Beispiele,
-/// mit:
-/// - kontinuierlichen Messzeilen (confirmed == false)
-/// - zusätzlichen Zeilen für bestätigte Überholungen (confirmed == true)
+/// Schreibt eine einfache OBS-CSV-Datei im Stil der Beispiele
+/// (empty-metadata.csv / gps-time.csv / zero-zero-bug.csv),
+/// mit einem Eintrag pro Messzeile.
+///
+/// Ziel: Minimal lauffähiges CSV-Format, in das man Timestamp,
+/// GPS und linke/rechte Abstände schreiben kann.
 final class OBSCSVWriter {
 
     private let queue = DispatchQueue(label: "obs.csv.writer")
@@ -76,10 +78,11 @@ final class OBSCSVWriter {
                 self.fileURL = file
 
                 // Metadaten-Zeile (minimal, wie empty-metadata.csv)
+                // Du kannst das bei Bedarf später erweitern.
                 let meta = "OBSDataFormat=2\n"
                 try fh.write(contentsOf: Data(meta.utf8))
 
-                // Header-Zeile (bis Rus30)
+                // Header-Zeile wie in deinen Beispielen (bis Rus30)
                 let header = """
 Date;Time;Millis;Comment;Latitude;Longitude;Altitude;Course;Speed;HDOP;Satellites;BatteryLevel;Left;Right;Confirmed;Marked;Invalid;InsidePrivacyArea;Factor;Measurements;Tms1;Lus1;Rus1;Tms2;Lus2;Rus2;Tms3;Lus3;Rus3;Tms4;Lus4;Rus4;Tms5;Lus5;Rus5;Tms6;Lus6;Rus6;Tms7;Lus7;Rus7;Tms8;Lus8;Rus8;Tms9;Lus9;Rus9;Tms10;Lus10;Rus10;Tms11;Lus11;Rus11;Tms12;Lus12;Rus12;Tms13;Lus13;Rus13;Tms14;Lus14;Rus14;Tms15;Lus15;Rus15;Tms16;Lus16;Rus16;Tms17;Lus17;Rus17;Tms18;Lus18;Rus18;Tms19;Lus19;Rus19;Tms20;Lus20;Rus20;Tms21;Lus21;Rus21;Tms22;Lus22;Rus22;Tms23;Lus23;Rus23;Tms24;Lus24;Rus24;Tms25;Lus25;Rus25;Tms26;Lus26;Rus26;Tms27;Lus27;Rus27;Tms28;Lus28;Rus28;Tms29;Lus29;Rus29;Tms30;Lus30;Rus30\n
 """
@@ -95,27 +98,30 @@ Date;Time;Millis;Comment;Latitude;Longitude;Altitude;Course;Speed;HDOP;Satellite
     }
 
     /// Aktualisiert die zuletzt bekannte GPS-Position.
+    /// Kannst du z.B. aus deinem LocationManager aufrufen.
     func updateLocation(_ location: CLLocation) {
         queue.async {
             self.lastLatitude = location.coordinate.latitude
             self.lastLongitude = location.coordinate.longitude
             self.lastAltitude = location.altitude
             self.lastSpeed = max(location.speed, 0)  // m/s
-            self.lastHdop = location.horizontalAccuracy
+            self.lastHdop = location.horizontalAccuracy  // semantisch nicht 1:1 HDOP, aber besser als nichts
         }
     }
 
     /// Fügt eine Messzeile hinzu.
     ///
-    /// - confirmed:
-    ///   - `false`: kontinuierlicher Trackpunkt (z.B. Distanz-Event)
-    ///   - `true`: bestätigte Überholung (z.B. Button-Event mit Median)
+    /// - Parameter timestamp: Zeitpunkt der Messung (z.B. Smartphone-Zeit aus Event.time)
+    /// - leftCm / rightCm: Abstand in cm (mindestens einer der beiden nicht nil)
+    ///
+    /// Viele Felder (Satellites, BatteryLevel, Confirmed, Marked, Lus/Rus…) werden
+    /// zunächst leer gelassen oder mit neutralen Defaults gefüllt. Das reicht für Tests
+    /// und einfache Auswertung; für 100% Portal-Kompatibilität kann man es später verfeinern.
     func appendMeasurement(
         timestamp: Date,
         leftCm: Int?,
         rightCm: Int?,
-        comment: String? = nil,
-        confirmed: Bool = false
+        comment: String? = nil
     ) {
         queue.async {
             guard let handle = self.handle else {
@@ -142,36 +148,33 @@ Date;Time;Millis;Comment;Latitude;Longitude;Altitude;Course;Speed;HDOP;Satellite
             let satellitesStr = ""
             let batteryStr = ""
 
-            // Left / Right (in cm) – immer schreiben, wenn vorhanden
+            // Left / Right (in cm)
             let leftStr = leftCm.map { String($0) } ?? ""
             let rightStr = rightCm.map { String($0) } ?? ""
 
             // Confirmed / Marked / Invalid / InsidePrivacyArea
-            let confirmedStr = confirmed ? "1" : "0"
-            let markedStr = ""
+            // Fürs Erste 0 / "".
+            let confirmedStr = ""  // oder "0"
+            let markedStr = ""     // oder "0"
             let invalidStr = "0"
             let insidePrivacyStr = "0"
 
-            // Factor (in deinen Beispielen 58)
+            // Factor (in deinen Beispielen 58) – wir nehmen 58 als Default.
             let factorStr = "58"
 
             // Measurements = 1 (wir schreiben pro Zeile eine Messung)
             let measurementsStr = "1"
 
-            // Tms1/Lus1/Rus1 – Rohdaten, wenn Distanzen vorhanden
-            let tms1: String
-            let lus1: String
-            let rus1: String
-
-            if leftCm != nil || rightCm != nil {
-                tms1 = "0"
-                lus1 = leftCm.map { String($0 * 10) } ?? ""
-                rus1 = rightCm.map { String($0 * 10) } ?? ""
-            } else {
-                tms1 = ""
-                lus1 = ""
-                rus1 = ""
-            }
+            // Tms1/Lus1/Rus1: minimal befüllen
+            // Für _korrekte_ Rohdaten müsste man die Firmware-Timings kennen.
+            // Hier schreiben wir:
+            // - Tms1: 0
+            // - Lus1: leftCm * 10 (mm) falls Left
+            // - Rus1: rightCm * 10 (mm) falls Right
+            // Das ist eher ein Platzhalter; Portal kann damit evtl. schon umgehen.
+            let tms1 = "0"
+            let lus1 = leftCm.map { String($0 * 10) } ?? ""
+            let rus1 = rightCm.map { String($0 * 10) } ?? ""
 
             // Alle Tms2..Rus30 leer
             let emptyTriples = Array(repeating: ["", "", ""], count: 29).flatMap { $0 }
@@ -179,7 +182,7 @@ Date;Time;Millis;Comment;Latitude;Longitude;Altitude;Course;Speed;HDOP;Satellite
             // Kommentar
             let commentStr = comment ?? ""
 
-            // CSV-Zeile aufbauen (Reihenfolge wie im Header)
+            // CSV-Zeile aufbauen
             var fields: [String] = []
             fields.append(contentsOf: [
                 dateStr,
@@ -209,6 +212,7 @@ Date;Time;Millis;Comment;Latitude;Longitude;Altitude;Course;Speed;HDOP;Satellite
 
             fields.append(contentsOf: emptyTriples)
 
+            // Insgesamt sollten es genau so viele Felder sein wie im Header.
             let line = fields.joined(separator: ";") + "\n"
 
             do {
