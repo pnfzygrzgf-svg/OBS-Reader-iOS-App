@@ -69,12 +69,12 @@ struct DataExportView: View {
                 }
 
                 // Dateien
-                Section("Aufnahmen (.bin / .csv)") {
+                Section("Aufnahmen") {
                     if files.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Keine Aufnahmen gefunden")
                                 .font(.headline)
-                            Text("Starte eine Aufnahme, dann erscheint hier eine .bin (und optional .csv), die du teilen, hochladen oder löschen kannst.")
+                            Text("Starte eine Aufnahme, dann erscheint hier eine .bin-Datei, die du teilen, hochladen oder löschen kannst.")
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
@@ -168,7 +168,7 @@ struct DataExportView: View {
                     .cornerRadius(16)
             }
         }
-        .navigationTitle("Dateien (.bin / .csv)")
+        .navigationTitle("Dateien")
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(role: .destructive) {

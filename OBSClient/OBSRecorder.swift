@@ -4,7 +4,7 @@ import CoreLocation
 final class OBSRecorder {
 
     private let binWriter = OBSFileWriter()
-    private let csvWriter = OBSCSVWriter()
+    // CSV-Writer entfernt – es werden keine CSV-Dateien mehr erzeugt
 
     private(set) var isRecording = false
 
@@ -13,7 +13,7 @@ final class OBSRecorder {
         isRecording = true
 
         binWriter.startSession()
-        csvWriter.startSession()
+        // Keine CSV-Session mehr
     }
 
     func stop() {
@@ -21,12 +21,14 @@ final class OBSRecorder {
         isRecording = false
 
         binWriter.finishSession()
-        csvWriter.finishSession()
+        // Keine CSV-Session mehr
     }
 
     /// vom LocationManager weiterreichen
+    /// (aktuell ohne Funktion, da keine CSVs mehr geschrieben werden)
     func updateLocation(_ location: CLLocation) {
-        csvWriter.updateLocation(location)
+        // Früher: csvWriter.updateLocation(location)
+        // Jetzt: keine Aktion nötig, BIN-Logging läuft über andere Stellen
     }
 
     /// immer dann aufrufen, wenn du ein neues OBS-Event bekommen hast
@@ -42,12 +44,8 @@ final class OBSRecorder {
         // .bin
         binWriter.write(rawCOBSFrame)
 
-        // .csv
-        csvWriter.appendMeasurement(
-            timestamp: timestamp,
-            leftCm: leftCm,
-            rightCm: rightCm,
-            comment: comment
-        )
+        // Früher: zusätzlich CSV-Zeile schreiben
+        // csvWriter.appendMeasurement(...)
+        // Jetzt: keine CSV-Ausgabe mehr
     }
 }

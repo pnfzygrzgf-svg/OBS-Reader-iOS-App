@@ -58,9 +58,9 @@ final class BluetoothManager: NSObject, ObservableObject {
     private var movingMedian = MovingMedian(windowSize: 3,
                                             maxSamples: 122)
 
-    /// Writer für BIN- und CSV-Datei
+    /// Writer für BIN-Datei
     private let binWriter = OBSFileWriter()
-    private let csvWriter = OBSCSVWriter()
+    // CSV-Writer entfernt – es werden keine CSV-Dateien mehr erzeugt
 
     override init() {
         super.init()
@@ -75,7 +75,7 @@ final class BluetoothManager: NSObject, ObservableObject {
 
     func startRecording() {
         binWriter.startSession()
-        csvWriter.startSession()
+        // Keine CSV-Session mehr
         DispatchQueue.main.async {
             self.isRecording = true
         }
@@ -83,7 +83,7 @@ final class BluetoothManager: NSObject, ObservableObject {
 
     func stopRecording() {
         binWriter.finishSession()
-        csvWriter.finishSession()
+        // Keine CSV-Session mehr
         DispatchQueue.main.async {
             self.isRecording = false
         }
@@ -93,8 +93,8 @@ final class BluetoothManager: NSObject, ObservableObject {
     func handleLocationUpdate(_ location: CLLocation) {
         guard isRecording else { return }
 
-        // CSV: letzte Position aktualisieren
-        csvWriter.updateLocation(location)
+        // CSV: letzte Position aktualisieren (entfernt)
+        // csvWriter.updateLocation(location)
 
         // BIN: Geolocation-Event schreiben (wie bisher)
         var geo = Openbikesensor_Geolocation()
@@ -350,23 +350,8 @@ extension BluetoothManager: CBPeripheralDelegate {
             rightDistanceText = "Rechts (ID \(dm.sourceID)): \(infoText)"
         }
 
-        // CSV: Messung schreiben, wenn Aufnahme läuft
-        if isRecording {
-            let ts = Date()
-            if dm.sourceID == 1 {
-                csvWriter.appendMeasurement(
-                    timestamp: ts,
-                    leftCm: correctedCm,
-                    rightCm: nil
-                )
-            } else {
-                csvWriter.appendMeasurement(
-                    timestamp: ts,
-                    leftCm: nil,
-                    rightCm: correctedCm
-                )
-            }
-        }
+        // CSV-Schreiben bei Aufnahme wurde hier entfernt.
+        // BIN-Logging läuft separat in storeIncomingSensorEvent / storeEventToBin.
     }
 
     private func handleUserInputPreview() {

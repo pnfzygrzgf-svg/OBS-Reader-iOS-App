@@ -21,14 +21,16 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
 
         manager.delegate = self
 
-        // GPS möglichst ähnlich zu Android:
-        // - hohe Genauigkeit
-        // - möglichst viele Updates
+        // GPS-Einstellungen: hohe Genauigkeit, alle Updates
         manager.desiredAccuracy = kCLLocationAccuracyBest
-        manager.distanceFilter = kCLDistanceFilterNone  // KEIN Mindestabstand, jedes Update mitnehmen
+        manager.distanceFilter = kCLDistanceFilterNone
 
-        // Berechtigung anfragen
-        manager.requestWhenInUseAuthorization()
+        // 🔴 WICHTIG für Hintergrund:
+        manager.allowsBackgroundLocationUpdates = true       // darf im Hintergrund weiterlaufen
+        manager.pausesLocationUpdatesAutomatically = false   // iOS soll nicht automatisch pausieren
+
+        // 🔴 Statt "WhenInUse" jetzt "Always" anfragen
+        manager.requestAlwaysAuthorization()
 
         // Falls schon erlaubt war, direkt starten
         if manager.authorizationStatus == .authorizedAlways ||
@@ -47,11 +49,17 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
 
         switch status {
         case .authorizedAlways, .authorizedWhenInUse:
+            // Sicherheitshalber nochmal setzen, falls iOS den Manager neu konfiguriert hat
+            manager.allowsBackgroundLocationUpdates = true
+            manager.pausesLocationUpdatesAutomatically = false
             manager.startUpdatingLocation()
+
         case .denied, .restricted:
             manager.stopUpdatingLocation()
+
         case .notDetermined:
             break
+
         @unknown default:
             break
         }
@@ -73,4 +81,3 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         print("LocationManager error: \(error)")
     }
 }
-

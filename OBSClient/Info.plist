@@ -2,6 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSPrincipalClass</key>
+	<string></string>
+	<key>CFBundleIdentifier</key>
+	<string></string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Diese App erfasst deine Position, um deine Fahrt aufzuzeichnen.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Diese App zeichnet deine Position auch im Hintergrund auf, um Routen und Sensordaten während der gesamten Fahrt speichern zu können.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>bluetooth-central</string>
