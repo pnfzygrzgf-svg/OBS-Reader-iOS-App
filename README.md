@@ -15,9 +15,10 @@ Die App ist mittels *Vibecoding* erstellt worden. **Don't trust verify!**
 Der OBS-Lite kommuniziert über BLE mit dem iPhone. Dazu muss die angepasste Firmware auf dem ESP installiert werden: https://github.com/pnfzygrzgf-svg/firmware-lite
 
 # Screenshots
+<img width="240" height="1278" alt="Bildschirmfoto 2025-12-08 um 15 51 24" src="https://github.com/user-attachments/assets/84a68991-0a45-4319-b240-4e9fceefac29" />
 
-<img width="240" height="1278" alt="IMG_3991" src="https://github.com/user-attachments/assets/b7b4b309-ef68-4325-82c1-fc6bf2d05665" />
 
+<img width="240" height="1278" alt="Bildschirmfoto 2025-12-08 um 15 49 33" src="https://github.com/user-attachments/assets/4d99c31f-17ef-4985-bd96-d8c29de8d371" />
 
 # OpenBikeSensor
 
