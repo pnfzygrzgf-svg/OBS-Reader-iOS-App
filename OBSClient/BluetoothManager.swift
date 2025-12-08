@@ -16,18 +16,28 @@ final class BluetoothManager: NSObject, ObservableObject {
     @Published var isConnected: Bool = false
     @Published var isRecording: Bool = false
 
+    /// Hat die App Bluetooth-Berechtigung (iOS-Authorization)?
+    @Published var hasBluetoothPermission: Bool = true
+
+    /// Sind Standortdienste (GPS) auf Systemebene aktiviert?
+    @Published var isLocationEnabled: Bool = false
+
+    /// Hat die App Standort-Berechtigung "Immer"?
+    @Published var hasLocationAlwaysPermission: Bool = false
+
     @Published var lastEvent: Openbikesensor_Event?
     @Published var lastError: String?
 
     /// Einfacher Text mit letzter Distanz
-    @Published var lastDistanceText: String = "–"
+    @Published var lastDistanceText: String = "Noch keine Messung. Starte eine Aufnahme, um Werte zu sehen."
+
     /// Letzte Text-/UserInput-Nachricht
     @Published var lastMessageText: String = ""
 
-    /// Vorschau
-    @Published var leftDistanceText: String = "Links: "
-    @Published var rightDistanceText: String = "Rechts: "
-    @Published var overtakeDistanceText: String = "Überholabstand: "
+    /// Vorschau-Texte
+    @Published var leftDistanceText: String = "Links: Noch keine Messung."
+    @Published var rightDistanceText: String = "Rechts: Noch keine Messung."
+    @Published var overtakeDistanceText: String = "Überholabstand: Noch keine Messung."
 
     /// Letzter Median am Button-Druck
     @Published var lastMedianAtPressCm: Int?
@@ -39,6 +49,9 @@ final class BluetoothManager: NSObject, ObservableObject {
     @Published var rightRawCm: Int?
     @Published var rightCorrectedCm: Int?
 
+    /// Letzter berechneter Überholabstand in cm (für UI-Anzeige)
+    @Published var overtakeDistanceCm: Int?
+
     /// Lenkerbreite in cm (einstellbar im UI)
     @Published var handlebarWidthCm: Int = 60 {
         didSet {
@@ -47,6 +60,12 @@ final class BluetoothManager: NSObject, ObservableObject {
             UserDefaults.standard.set(handlebarWidthCm, forKey: "handlebarWidthCm")
         }
     }
+
+    /// Anzahl der Überholvorgänge (Tastendrücke) in der aktuellen/zuletzt beendeten Aufnahme
+    @Published var currentOvertakeCount: Int = 0
+
+    /// Aufsummierte Distanz der aktuellen/zuletzt beendeten Aufnahme (in Metern)
+    @Published var currentDistanceMeters: Double = 0
 
     // MARK: - Private
 
@@ -58,51 +77,97 @@ final class BluetoothManager: NSObject, ObservableObject {
     private var movingMedian = MovingMedian(windowSize: 3,
                                             maxSamples: 122)
 
+    /// Location Manager nur zur Abfrage der Berechtigung
+    private let locationManager = CLLocationManager()
+
     /// Writer für BIN-Datei
     private let binWriter = OBSFileWriter()
-    // CSV-Writer entfernt – es werden keine CSV-Dateien mehr erzeugt
+
+    /// Letzte GPS-Position während der Aufnahme (für Distanz-Berechnung)
+    private var lastLocation: CLLocation?
+
+    // MARK: - Init
 
     override init() {
         super.init()
+
         let stored = UserDefaults.standard.integer(forKey: "handlebarWidthCm")
         if stored != 0 {
             handlebarWidthCm = stored
         }
-        central = CBCentralManager(delegate: self, queue: nil)
+
+        // Bluetooth – System-Power-Pop-up unterdrücken
+        central = CBCentralManager(
+            delegate: self,
+            queue: nil,
+            options: [
+                CBCentralManagerOptionShowPowerAlertKey: false
+            ]
+        )
+
+        // Location-Berechtigung beobachten
+        locationManager.delegate = self
+        updateLocationAuthorizationStatus()
     }
 
     // MARK: - Recording API
 
     func startRecording() {
         binWriter.startSession()
-        // Keine CSV-Session mehr
         DispatchQueue.main.async {
+            self.currentOvertakeCount = 0
+            self.currentDistanceMeters = 0
+            self.lastLocation = nil
             self.isRecording = true
         }
     }
 
     func stopRecording() {
+        // Session beenden
         binWriter.finishSession()
-        // Keine CSV-Session mehr
+
+        // Zähler & Distanz an die entstandene Datei "dranhängen"
+        if let fileURL = binWriter.fileURL {
+            let hasCount = currentOvertakeCount > 0
+            let hasDistance = currentDistanceMeters > 0.0
+
+            if hasCount || hasDistance {
+                OvertakeStatsStore.store(
+                    count: hasCount ? currentOvertakeCount : nil,
+                    distanceMeters: hasDistance ? currentDistanceMeters : nil,
+                    for: fileURL
+                )
+            }
+        }
+
         DispatchQueue.main.async {
             self.isRecording = false
+            // currentOvertakeCount & currentDistanceMeters bleiben stehen,
+            // damit das UI sie nach dem Stoppen anzeigen kann
         }
     }
 
-    /// vom LocationManager aufgerufen, um GPS-Geolocation-Events zu schreiben
+    /// vom LocationManager oder App-Code aufgerufen, um GPS-Geolocation-Events zu schreiben
     func handleLocationUpdate(_ location: CLLocation) {
         guard isRecording else { return }
 
-        // CSV: letzte Position aktualisieren (entfernt)
-        // csvWriter.updateLocation(location)
+        // 1) Distanz live aufsummieren
+        if let prev = lastLocation {
+            let segment = location.distance(from: prev) // Meter
+            // einfache Plausibilitätsfilter gegen Ausreißer
+            if segment > 0, segment < 2000 {
+                currentDistanceMeters += segment
+            }
+        }
+        lastLocation = location
 
-        // BIN: Geolocation-Event schreiben (wie bisher)
+        // 2) BIN: Geolocation-Event schreiben
         var geo = Openbikesensor_Geolocation()
         geo.latitude = location.coordinate.latitude
         geo.longitude = location.coordinate.longitude
         geo.altitude = location.altitude
         geo.groundSpeed = Float(max(location.speed, 0))
-        geo.hdop = Float(location.horizontalAccuracy) // semantisch nicht perfekt, aber ok
+        geo.hdop = Float(location.horizontalAccuracy)
 
         var t = Openbikesensor_Time()
         let ts = location.timestamp.timeIntervalSince1970
@@ -119,20 +184,57 @@ final class BluetoothManager: NSObject, ObservableObject {
 
         storeEventToBin(event)
     }
+
+    // MARK: - Location-Berechtigung
+
+    private func updateLocationAuthorizationStatus() {
+        let status: CLAuthorizationStatus
+        if #available(iOS 14.0, *) {
+            status = locationManager.authorizationStatus
+        } else {
+            status = CLLocationManager.authorizationStatus()
+        }
+
+        // App-spezifische Berechtigung "Immer"
+        let hasAlways = (status == .authorizedAlways)
+
+        // Standortdienste (GPS) NICHT auf dem Main-Thread abfragen
+        DispatchQueue.global(qos: .utility).async {
+            let servicesEnabled = CLLocationManager.locationServicesEnabled()
+
+            DispatchQueue.main.async {
+                // Systemweite Standortdienste (GPS) an/aus
+                self.isLocationEnabled = servicesEnabled
+                // App-spezifische Berechtigung "Immer"
+                self.hasLocationAlwaysPermission = hasAlways
+            }
+        }
+    }
 }
 
 // MARK: - CBCentralManagerDelegate
 
 extension BluetoothManager: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        // Berechtigung bestimmen
+        let hasPermission: Bool
+        if #available(iOS 13.0, *) {
+            let auth = CBCentralManager.authorization
+            hasPermission = (auth == .allowedAlways)
+        } else {
+            hasPermission = true
+        }
+
         DispatchQueue.main.async {
+            self.hasBluetoothPermission = hasPermission
             self.isPoweredOn = (central.state == .poweredOn)
             if central.state != .poweredOn {
                 self.isConnected = false
             }
         }
 
-        guard central.state == .poweredOn else { return }
+        // Ohne Power oder ohne Berechtigung: nichts scannen
+        guard central.state == .poweredOn, hasPermission else { return }
 
         central.scanForPeripherals(
             withServices: [obsServiceUUID],
@@ -279,7 +381,7 @@ extension BluetoothManager: CBPeripheralDelegate {
     // MARK: - UI / Preview-Logik
 
     fileprivate func updateDerivedState(from event: Openbikesensor_Event) {
-        // Anzeige / Preview (wie vorher)
+        // Anzeige / Preview
         switch event.content {
         case .distanceMeasurement(let dm)?:
             let d = Double(dm.distance)
@@ -291,7 +393,7 @@ extension BluetoothManager: CBPeripheralDelegate {
                     dm.sourceID
                 )
             } else {
-                lastDistanceText = "Kein gültiger Messwert (Timeout) – Sensor \(dm.sourceID)"
+                lastDistanceText = "Kein gültiger Messwert empfangen (Timeout) – Sensor \(dm.sourceID)"
             }
 
         case .textMessage(let msg)?:
@@ -336,7 +438,7 @@ extension BluetoothManager: CBPeripheralDelegate {
             movingMedian.add(correctedCm)
         }
 
-        let infoText = "Roh: \(rawCm) cm  |  korrigiert: \(correctedCm) cm"
+        let infoText = "Gemessen: \(rawCm) cm  |  berechnet: \(correctedCm) cm"
 
         if dm.sourceID == 1 {
             // Links
@@ -349,25 +451,28 @@ extension BluetoothManager: CBPeripheralDelegate {
             rightCorrectedCm = correctedCm
             rightDistanceText = "Rechts (ID \(dm.sourceID)): \(infoText)"
         }
-
-        // CSV-Schreiben bei Aufnahme wurde hier entfernt.
-        // BIN-Logging läuft separat in storeIncomingSensorEvent / storeEventToBin.
     }
 
     private func handleUserInputPreview() {
+        // Jeder UserInput während der Aufnahme = ein Überholvorgang
+        if isRecording {
+            currentOvertakeCount += 1
+        }
+
         guard let median = movingMedian.currentMedian else {
-            overtakeDistanceText = "Überholabstand: –"
+            overtakeDistanceText = "Überholabstand: Noch keine Messung."
             lastMedianAtPressCm = nil
+            overtakeDistanceCm = nil
             return
         }
 
         lastMedianAtPressCm = median
+        overtakeDistanceCm = median
         overtakeDistanceText = "Überholabstand: \(median) cm"
     }
 
     // MARK: - BIN Schreiblogik
 
-    /// Nimmt das Event aus dem Sensor, hängt iPhone-UNIX-Zeit dran und schreibt es (COBS+0x00) in die .bin
     private func storeIncomingSensorEvent(_ event: Openbikesensor_Event) {
         guard isRecording else { return }
 
@@ -387,7 +492,6 @@ extension BluetoothManager: CBPeripheralDelegate {
         storeEventToBin(e)
     }
 
-    /// Event → Protobuf → COBS → 0x00 → BIN-FileWriter
     private func storeEventToBin(_ event: Openbikesensor_Event) {
         guard isRecording else { return }
 
@@ -402,6 +506,20 @@ extension BluetoothManager: CBPeripheralDelegate {
         } catch {
             print("storeEventToBin: \(error)")
         }
+    }
+}
+
+// MARK: - CLLocationManagerDelegate
+
+extension BluetoothManager: CLLocationManagerDelegate {
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        updateLocationAuthorizationStatus()
+    }
+
+    // iOS < 14
+    func locationManager(_ manager: CLLocationManager,
+                         didChangeAuthorization status: CLAuthorizationStatus) {
+        updateLocationAuthorizationStatus()
     }
 }
 

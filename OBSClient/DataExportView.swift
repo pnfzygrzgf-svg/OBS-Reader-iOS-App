@@ -1,6 +1,46 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+// MARK: - Helper: Speicherung der Überholvorgänge & Distanz pro Datei
+
+struct OvertakeStatsStore {
+    private static let countsKey   = "obsOvertakeCounts"
+    private static let distanceKey = "obsTrackDistanceMeters"
+
+    /// Speichert Anzahl Überholvorgänge und Distanz (in Metern) für eine Datei.
+    static func store(count: Int?, distanceMeters: Double?, for url: URL) {
+        let fileKey = url.lastPathComponent
+
+        // Counts
+        if let count = count, count > 0 {
+            var dict = (UserDefaults.standard.dictionary(forKey: countsKey) as? [String: Int]) ?? [:]
+            dict[fileKey] = count
+            UserDefaults.standard.set(dict, forKey: countsKey)
+        }
+
+        // Distanz
+        if let meters = distanceMeters, meters > 0 {
+            var dict = (UserDefaults.standard.dictionary(forKey: distanceKey) as? [String: Double]) ?? [:]
+            dict[fileKey] = meters
+            UserDefaults.standard.set(dict, forKey: distanceKey)
+        }
+    }
+
+    /// Lädt gespeicherte Überholvorgänge & Distanz (km) für eine Datei.
+    static func load(for url: URL) -> (count: Int?, distanceKm: Double?) {
+        let fileKey = url.lastPathComponent
+
+        let countsDict = UserDefaults.standard.dictionary(forKey: countsKey) as? [String: Int]
+        let rawCount = countsDict?[fileKey]
+
+        let distDict = UserDefaults.standard.dictionary(forKey: distanceKey) as? [String: Double]
+        let meters = distDict?[fileKey]
+        let km = meters.map { $0 / 1000.0 }
+
+        return (rawCount, km)
+    }
+}
+
 // MARK: - Model
 
 struct OBSFileInfo: Identifiable {
@@ -9,6 +49,13 @@ struct OBSFileInfo: Identifiable {
     let name: String
     let sizeDescription: String
     let dateDescription: String
+    let modificationDate: Date?
+
+    /// Gespeicherte Anzahl Überholvorgänge für diese Datei (falls vorhanden)
+    let overtakeCount: Int?
+
+    /// Gespeicherte Distanz in km (falls vorhanden)
+    let distanceKm: Double?
 }
 
 // Wrapper für Share Sheet
@@ -51,167 +98,59 @@ struct DataExportView: View {
 
     var body: some View {
         ZStack {
-            List {
-                // OBS-Portal-Konfiguration
-                Section {
-                    TextField("Basis-URL (z.B. https://meinserver)", text: $obsBaseUrl)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .disableAutocorrection(true)
+            // Hintergrund wie auf der Startseite
+            Color(.systemGroupedBackground)
+                .ignoresSafeArea()
 
-                    SecureField("API-Key", text: $obsApiKey)
-
-                    if obsBaseUrl.isEmpty || obsApiKey.isEmpty {
-                        Text("Bitte Basis-URL und API-Key eintragen, um hochladen zu können.")
-                            .font(.obsCaption)
-                            .foregroundStyle(.secondary)
-                    }
-                } header: {
-                    Text("OBS-Portal")
-                        .font(.obsSectionTitle)
+            ScrollView {
+                VStack(spacing: 24) {
+                    portalConfigCard
+                    recordingsSection
                 }
-
-                // Dateien
-                Section {
-                    if files.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Keine Aufnahmen gefunden")
-                                .font(.obsSectionTitle)
-
-                            Text("Starte eine Aufnahme, dann erscheint hier eine .bin-Datei, die du teilen, hochladen oder löschen kannst.")
-                                .font(.obsFootnote)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 16)
-                    } else {
-                        ForEach(files) { file in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(file.name)
-                                    .font(.obsSectionTitle)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-
-                                HStack(spacing: 12) {
-                                    Text(file.sizeDescription)
-                                    Text(file.dateDescription)
-                                }
-                                .font(.obsCaption)
-                                .monospacedDigit()
-                                .foregroundStyle(.secondary)
-
-                                HStack {
-                                    Button {
-                                        print("DataExportView: share() Button für \(file.name)")
-                                        share(file)
-                                    } label: {
-                                        Label("Teilen / AirDrop", systemImage: "square.and.arrow.up")
-                                    }
-                                    .buttonStyle(.borderless)
-
-                                    Button {
-                                        print("DataExportView: upload() Button für \(file.name)")
-                                        pendingUploadFile = file
-                                        isShowingUploadConfirm = true
-                                    } label: {
-                                        Label("Hochladen", systemImage: "icloud.and.arrow.up")
-                                            .foregroundColor(
-                                                isUploading || obsBaseUrl.isEmpty || obsApiKey.isEmpty
-                                                ? .gray
-                                                : .accentColor
-                                            )
-                                    }
-                                    .buttonStyle(.borderless)
-                                    .disabled(isUploading || obsBaseUrl.isEmpty || obsApiKey.isEmpty)
-
-                                    Spacer()
-
-                                    Button(role: .destructive) {
-                                        print("DataExportView: delete() Button für \(file.name)")
-                                        pendingDeleteFile = file
-                                        isShowingDeleteConfirm = true
-                                    } label: {
-                                        Label("Löschen", systemImage: "trash")
-                                    }
-                                    .buttonStyle(.borderless)
-                                }
-                                .font(.obsCaption)
-                                .padding(.top, 4)
-                            }
-                            .padding(.vertical, 4)
-                            // Swipe-Actions
-                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                Button(role: .destructive) {
-                                    pendingDeleteFile = file
-                                    isShowingDeleteConfirm = true
-                                } label: {
-                                    Label("Löschen", systemImage: "trash")
-                                }
-                            }
-                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                                Button {
-                                    share(file)
-                                } label: {
-                                    Label("Teilen", systemImage: "square.and.arrow.up")
-                                }
-
-                                Button {
-                                    pendingUploadFile = file
-                                    isShowingUploadConfirm = true
-                                } label: {
-                                    Label("Hochladen", systemImage: "icloud.and.arrow.up")
-                                }
-                                .disabled(isUploading || obsBaseUrl.isEmpty || obsApiKey.isEmpty)
-                            }
-                        }
-                    }
-                } header: {
-                    Text("Aufnahmen")
-                        .font(.obsSectionTitle)
-                }
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 32)
+                .font(.obsBody)
             }
-            .listStyle(.insetGrouped)
+            .scrollIndicators(.hidden)
             .refreshable {
                 loadFiles()
             }
-            .blur(radius: isUploading ? 1 : 0)
 
+            // Upload-Overlay unten als dezentes Toast
             if isUploading {
-                Color.black.opacity(0.25)
-                    .ignoresSafeArea()
-
-                ProgressView("Upload läuft…")
-                    .font(.obsBody)
-                    .padding(24)
+                VStack {
+                    Spacer()
+                    HStack(spacing: 12) {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                        Text("Upload läuft…")
+                            .font(.obsBody)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
                     .background(.ultraThinMaterial)
                     .cornerRadius(16)
-                    .tint(.accentColor)
+                    .shadow(radius: 4)
+                    .padding(.bottom, 16)
+                }
+                .transition(.opacity)
             }
         }
-        .font(.obsBody) // Basis-Font in dieser View
-        .disabled(isUploading) // Toolbar + Interaktion sperren während Upload
         .navigationTitle("Dateien")
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button(role: .destructive) {
                     if !files.isEmpty {
                         pendingDeleteFile = nil   // nil => alle
                         isShowingDeleteConfirm = true
                     }
                 } label: {
-                    Label("Alle löschen", systemImage: "trash.slash")
+                    Image(systemName: "trash")
                 }
                 .disabled(files.isEmpty)
                 .buttonStyle(.borderless)
-            }
-
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button {
-                    loadFiles()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .accessibilityLabel("Liste aktualisieren")
-                }
-                .buttonStyle(.borderless)
+                .accessibilityLabel("Alle Dateien löschen")
             }
         }
         .onAppear {
@@ -262,10 +201,175 @@ struct DataExportView: View {
             }
         } message: {
             if let file = pendingDeleteFile {
-                Text("Die Datei „\(file.name)“ wird dauerhaft gelöscht.")
+                Text("Diese Fahrt „\(file.name)“ wird dauerhaft gelöscht.")
             } else {
-                Text("Alle angezeigten Dateien werden dauerhaft gelöscht.")
+                Text("Alle Fahrten werden dauerhaft gelöscht.")
             }
+        }
+    }
+
+    // MARK: - Unterviews
+
+    /// OBS-Portal-Konfiguration als Card
+    private var portalConfigCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 8) {
+                Image(systemName: obsBaseUrl.isEmpty || obsApiKey.isEmpty
+                      ? "exclamationmark.triangle.fill"
+                      : "checkmark.seal.fill")
+                .foregroundStyle(obsBaseUrl.isEmpty || obsApiKey.isEmpty ? .orange : .green)
+
+                Text("OBS-Portal")
+                    .font(.obsScreenTitle)
+
+                Spacer()
+            }
+
+            Text(obsBaseUrl.isEmpty || obsApiKey.isEmpty
+                 ? "OBS-Portal ist noch nicht vollständig eingerichtet."
+                 : "OBS-Portal ist bereit zum Hochladen.")
+            .font(.obsCaption)
+            .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Portal-URL")
+                    .font(.obsFootnote)
+                    .foregroundStyle(.secondary)
+
+                TextField("https://portal.openbikesensor.org/", text: $obsBaseUrl)
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .disableAutocorrection(true)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.obsBody)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("API-Key")
+                    .font(.obsFootnote)
+                    .foregroundStyle(.secondary)
+
+                SecureField("API-Key eintragen", text: $obsApiKey)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.obsBody)
+            }
+
+            if obsBaseUrl.isEmpty || obsApiKey.isEmpty {
+                Text("Bitte Portal-URL und API-Key eintragen, um Aufnahmen direkt ins OBS-Portal hochzuladen.")
+                    .font(.obsCaption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .obsCardStyle()
+    }
+
+    /// Aufnahmen-Abschnitt mit Dateikarten
+    private var recordingsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Aufnahmen")
+                .font(.obsScreenTitle)
+
+            if files.isEmpty {
+                emptyStateCard
+                    .obsCardStyle()
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(files) { file in
+                        fileRow(for: file)
+                            .obsCardStyle()
+                    }
+                }
+            }
+        }
+    }
+
+    /// Leerer Zustand, wenn keine Dateien existieren
+    private var emptyStateCard: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "doc.text.magnifyingglass")
+                .font(.system(size: 40))
+                .foregroundStyle(.secondary)
+
+            Text("Keine Aufnahmen gefunden")
+                .font(.obsSectionTitle)
+
+            Text("Erstelle eine Aufnahme. Danach erscheinen deine .bin-Dateien hier zum Teilen oder Hochladen.")
+                .font(.obsFootnote)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+
+    /// Einzelne Dateikarte
+    private func fileRow(for file: OBSFileInfo) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(file.name)
+                    .font(.obsSectionTitle)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+
+                HStack(spacing: 12) {
+                    Text(file.sizeDescription)
+                    Text(file.dateDescription)
+                }
+                .font(.obsCaption)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+
+                if file.overtakeCount != nil || file.distanceKm != nil {
+                    HStack(spacing: 12) {
+                        if let count = file.overtakeCount {
+                            Text("\(count) Überholvorgänge")
+                        }
+                        if let km = file.distanceKm {
+                            Text("\(String(format: "%.2f", km)) km")
+                        }
+                    }
+                    .font(.obsCaption)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilityText(for: file))
+
+            Spacer()
+
+            Menu {
+                Button {
+                    share(file)
+                } label: {
+                    Label("Teilen", systemImage: "square.and.arrow.up")
+                }
+
+                Button {
+                    pendingUploadFile = file
+                    isShowingUploadConfirm = true
+                } label: {
+                    Label("Hochladen", systemImage: "icloud.and.arrow.up")
+                }
+                .disabled(isUploading || obsBaseUrl.isEmpty || obsApiKey.isEmpty)
+
+                Button(role: .destructive) {
+                    pendingDeleteFile = file
+                    isShowingDeleteConfirm = true
+                } label: {
+                    Label("Löschen", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.title3)
+            }
+            .buttonStyle(.borderless)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // Primäraktion: Hochladen (Upload-Dialog öffnen)
+            pendingUploadFile = file
+            isShowingUploadConfirm = true
         }
     }
 
@@ -315,13 +419,19 @@ struct DataExportView: View {
                     guard values.isRegularFile == true else { continue }
 
                     let size = values.fileSize.map { formatBytes($0) } ?? "–"
-                    let date = values.contentModificationDate.map { formatter.string(from: $0) } ?? "–"
+                    let date = values.contentModificationDate
+                    let dateDesc = date.map { formatter.string(from: $0) } ?? "–"
+
+                    let stats = OvertakeStatsStore.load(for: url)
 
                     let info = OBSFileInfo(
                         url: url,
                         name: url.lastPathComponent,
                         sizeDescription: size,
-                        dateDescription: date
+                        dateDescription: dateDesc,
+                        modificationDate: date,
+                        overtakeCount: stats.count,
+                        distanceKm: stats.distanceKm
                     )
                     found.append(info)
                 } catch {
@@ -330,7 +440,17 @@ struct DataExportView: View {
             }
 
             print("DataExportView: gefunden \(found.count) .bin/.csv Dateien")
-            files = found.sorted(by: { $0.name < $1.name })
+
+            // Neueste zuerst nach Änderungsdatum, fallback auf Name
+            files = found.sorted { lhs, rhs in
+                let lDate = lhs.modificationDate ?? .distantPast
+                let rDate = rhs.modificationDate ?? .distantPast
+                if lDate == rDate {
+                    return lhs.name < rhs.name
+                } else {
+                    return lDate > rDate
+                }
+            }
 
         } catch {
             print("DataExportView: loadFiles error: \(error)")
@@ -438,9 +558,29 @@ struct DataExportView: View {
         let mb = kb / 1024
         return String(format: "%.2f MB", mb)
     }
+
+    private func accessibilityText(for file: OBSFileInfo) -> String {
+        var parts: [String] = []
+        parts.append(file.name)
+        parts.append("Größe \(file.sizeDescription)")
+        parts.append("geändert am \(file.dateDescription)")
+
+        if let count = file.overtakeCount {
+            parts.append("\(count) Überholvorgänge")
+        }
+
+        if let km = file.distanceKm {
+            parts.append("\(String(format: "%.2f", km)) Kilometer")
+        }
+
+        return parts.joined(separator: ", ")
+    }
 }
 
+// MARK: - Preview
+
 #Preview {
-    DataExportView()
-        .environmentObject(BluetoothManager())
+    NavigationStack {
+        DataExportView()
+    }
 }
