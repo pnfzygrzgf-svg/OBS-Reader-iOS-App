@@ -5,7 +5,7 @@ struct ContentView: View {
     @EnvironmentObject var bt: BluetoothManager
 
     @State private var showSaveConfirmation = false
-    @State private var showRawValues = false
+    @State private var showSideDistances = true   // steuert Anzeige von Abstand links/rechts
 
     var body: some View {
         NavigationStack {
@@ -29,7 +29,7 @@ struct ContentView: View {
                             BluetoothPermissionHintView()
                         }
 
-                        MeasurementsCardView(showRawValues: $showRawValues)
+                        MeasurementsCardView(showSideDistances: $showSideDistances)
 
                         HandlebarWidthView(handlebarWidthCm: $bt.handlebarWidthCm)
 
@@ -290,22 +290,23 @@ struct BluetoothPermissionHintView: View {
 
 struct MeasurementsCardView: View {
     @EnvironmentObject var bt: BluetoothManager
-    @Binding var showRawValues: Bool
+    @Binding var showSideDistances: Bool      // steuert Anzeige Seitenabstände
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("Messwerte")
-                    .font(.obsScreenTitle)
+                Text("Sensorwerte")
+                    .font(.obsSectionTitle)
 
                 Spacer()
 
-                Toggle("Rohwerte", isOn: $showRawValues)
+                // Toggle steuert, ob die Seitenabstände angezeigt werden
+                Toggle("Abstände anzeigen", isOn: $showSideDistances)
                     .labelsHidden()
             }
 
-            if !bt.isConnected {
-                // Placeholder / Empty-State
+            // Placeholder nur anzeigen, wenn Seitenabstände angezeigt werden sollen
+            if !bt.isConnected && showSideDistances {
                 VStack(alignment: .leading, spacing: 8) {
                     RoundedRectangle(cornerRadius: 4)
                         .fill(Color(.tertiarySystemFill))
@@ -317,24 +318,26 @@ struct MeasurementsCardView: View {
                 .redacted(reason: .placeholder)
             }
 
-            HStack(alignment: .top, spacing: 32) {
-                SensorValueView(
-                    title: "Abstand links",
-                    corrected: bt.leftCorrectedCm,
-                    raw: bt.leftRawCm,
-                    showRawValues: $showRawValues
-                )
-                .frame(maxWidth: .infinity, alignment: .leading)
+            // Alles unter „Abstand links/rechts“ ein-/ausblenden
+            if showSideDistances {
+                HStack(alignment: .top, spacing: 32) {
+                    SensorValueView(
+                        title: "Abstand links",
+                        corrected: bt.leftCorrectedCm,
+                        raw: bt.leftRawCm
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                SensorValueView(
-                    title: "Abstand rechts",
-                    corrected: bt.rightCorrectedCm,
-                    raw: bt.rightRawCm,
-                    showRawValues: $showRawValues
-                )
-                .frame(maxWidth: .infinity, alignment: .leading)
+                    SensorValueView(
+                        title: "Abstand rechts",
+                        corrected: bt.rightCorrectedCm,
+                        raw: bt.rightRawCm
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
 
+            // Überholabstand bleibt immer sichtbar
             OvertakeDistanceView(distance: bt.overtakeDistanceCm)
         }
         .obsCardStyle()
@@ -346,7 +349,6 @@ struct SensorValueView: View {
     let title: String
     let corrected: Int?
     let raw: Int?
-    @Binding var showRawValues: Bool
 
     @State private var showMeasuredInfo = false
     @State private var showCalculatedInfo = false
@@ -358,6 +360,7 @@ struct SensorValueView: View {
             Text(title)
                 .font(.obsSectionTitle)
 
+            // Berechneter Wert
             if let corrected {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
@@ -401,47 +404,47 @@ struct SensorValueView: View {
                     .foregroundStyle(.secondary)
             }
 
-            if showRawValues {
-                if let raw {
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 4) {
-                            Text("Gemessen (Rohwert)")
-                                .font(.obsFootnote)
-                                .foregroundStyle(.secondary)
+            // Rohwert
+            if let raw {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 4) {
+                        Text("Gemessen (Rohwert)")
+                            .font(.obsFootnote)
+                            .foregroundStyle(.secondary)
 
-                            Button {
-                                showMeasuredInfo = true
-                            } label: {
-                                Image(systemName: "info.circle")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                        }
-
-                        HStack(spacing: 4) {
-                            Text("\(raw)")
-                                .font(.obsFootnote)
-                                .monospacedDigit()
-                            Text("cm")
-                                .font(.obsFootnote)
+                        Button {
+                            showMeasuredInfo = true
+                        } label: {
+                            Image(systemName: "info.circle")
+                                .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
+                        .buttonStyle(.plain)
                     }
-                    .alert("Gemessener Rohwert", isPresented: $showMeasuredInfo) {
-                        Button("OK", role: .cancel) {}
-                    } message: {
-                        Text("„Gemessen (Rohwert)“ ist der Abstand, den der Sensor erfasst – ohne Korrektur um die Lenkerbreite.")
+
+                    HStack(spacing: 4) {
+                        Text("\(raw)")
+                            .font(.obsFootnote)
+                            .monospacedDigit()
+                        Text("cm")
+                            .font(.obsFootnote)
+                            .foregroundStyle(.secondary)
                     }
-                } else {
-                    Text("Noch kein Rohwert gemessen.")
-                        .font(.obsFootnote)
-                        .foregroundStyle(.secondary)
                 }
+                .alert("Gemessener Rohwert", isPresented: $showMeasuredInfo) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text("„Gemessen (Rohwert)“ ist der Abstand, den der Sensor erfasst – ohne Korrektur um die Lenkerbreite.")
+                }
+            } else {
+                Text("Noch kein Rohwert gemessen.")
+                    .font(.obsFootnote)
+                    .foregroundStyle(.secondary)
             }
         }
     }
 }
+
 
 // Überholabstand mit Farbcodierung
 struct OvertakeDistanceView: View {
@@ -450,7 +453,7 @@ struct OvertakeDistanceView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Überholabstand")
-                .font(.obsSectionTitle)
+                .font(.obsScreenTitle)
 
             if let distance {
                 HStack(spacing: 8) {
