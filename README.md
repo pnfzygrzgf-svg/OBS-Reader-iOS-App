@@ -16,8 +16,7 @@ Der OBS-Lite kommuniziert über BLE mit dem iPhone. Dazu muss die angepasste Fir
 
 # Screenshots
 
-<img width="240" height="1278" alt="IMG_3990" src="https://github.com/user-attachments/assets/1cd970e1-bba7-4a2d-bc16-cb0b0d5c68b7" />
-<img width="240" height="1278" alt="IMG_3989" src="https://github.com/user-attachments/assets/dda1c36f-e136-417a-bde8-2cc854e135e7" />
+<img width="240" height="1278" alt="IMG_3991" src="https://github.com/user-attachments/assets/b7b4b309-ef68-4325-82c1-fc6bf2d05665" />
 
 
 # OpenBikeSensor
