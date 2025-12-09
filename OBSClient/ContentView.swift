@@ -1,16 +1,26 @@
+// ContentView.swift
+
 import SwiftUI
 import UIKit
 
+/// Hauptbildschirm der App:
+/// - Verbindungsstatus (Bluetooth / Standort)
+/// - Live-Messwerte (Abstände, Überholabstand)
+/// - Lenkerbreite-Einstellung
+/// - Record-Button & gespeicherte Aufnahme-Info
 struct ContentView: View {
+    /// Zentraler Bluetooth-/Recording-Status aus dem BluetoothManager
     @EnvironmentObject var bt: BluetoothManager
 
+    /// Steuert, ob nach dem Stoppen der Aufnahme kurz ein Toast angezeigt wird
     @State private var showSaveConfirmation = false
+    /// Steuert, ob die Distanz links/rechts in der Messkarten-Ansicht angezeigt wird
     @State private var showSideDistances = true   // steuert Anzeige von Abstand links/rechts
 
     var body: some View {
         NavigationStack {
             ZStack {
-                // Hintergrund
+                // Hintergrund (wie Einstellungen-App)
                 Color(.systemGroupedBackground)
                     .ignoresSafeArea()
 
@@ -21,16 +31,20 @@ struct ContentView: View {
 
                         ConnectionStatusCard()
 
+                        // Hinweise für Standortrechte / -dienste
                         if !bt.isLocationEnabled || !bt.hasLocationAlwaysPermission {
                             LocationPermissionHintView()
                         }
 
+                        // Hinweise für Bluetooth-Status / -rechte
                         if !bt.isPoweredOn || !bt.hasBluetoothPermission {
                             BluetoothPermissionHintView()
                         }
 
+                        // Karte mit Sensorwerten und Überholabstand
                         MeasurementsCardView(showSideDistances: $showSideDistances)
 
+                        // Lenkerbreite-Einstellung
                         HandlebarWidthView(handlebarWidthCm: $bt.handlebarWidthCm)
 
                         Spacer(minLength: 0)
@@ -55,12 +69,14 @@ struct ContentView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
+                    // Navigation zum Datenexport
                     NavigationLink {
                         DataExportView()
                     } label: {
                         Image(systemName: "folder")
                     }
 
+                    // Navigation zur Info-Seite
                     NavigationLink {
                         InfoView()
                     } label: {
@@ -68,6 +84,7 @@ struct ContentView: View {
                     }
                 }
             }
+            // Fester Record-Button am unteren Rand (kleiner „Floating Button“)
             .safeAreaInset(edge: .bottom) {
                 RecordButtonView(
                     isConnected: bt.isConnected,
@@ -80,6 +97,7 @@ struct ContentView: View {
 
     // MARK: - Actions
 
+    /// Startet/stoppt die Aufnahme, inkl. Haptik & kleiner Animation.
     private func handleRecordTap() {
         let generator = UINotificationFeedbackGenerator()
         generator.prepare()
@@ -100,11 +118,13 @@ struct ContentView: View {
             }
         }
 
+        // „Success“-Feedback nach Tap
         generator.notificationOccurred(.success)
     }
 
     // MARK: - Hilfsfunktionen
 
+    /// Formatiert eine Distanz in Metern als String in Kilometern mit 2 Nachkommastellen.
     private func formattedDistanceKm(fromMeters meters: Double) -> String {
         let km = meters / 1000.0
         return String(format: "%.2f", km)
@@ -113,6 +133,7 @@ struct ContentView: View {
 
 // MARK: - Logo
 
+/// Logo-Zeile oben im Screen
 struct LogoView: View {
     var body: some View {
         Image("OBSLogo")
@@ -125,6 +146,7 @@ struct LogoView: View {
 
 // MARK: - Connection Status (BLE)
 
+/// Karte, die den Bluetooth-Verbindungsstatus zum OBS anzeigt.
 struct ConnectionStatusCard: View {
     @EnvironmentObject var bt: BluetoothManager
 
@@ -149,6 +171,7 @@ struct ConnectionStatusCard: View {
         .obsCardStyle()
     }
 
+    /// Haupttitel abhängig vom Status
     private var title: String {
         if bt.isConnected {
             return "Mit OBS verbunden"
@@ -162,6 +185,7 @@ struct ConnectionStatusCard: View {
         return "Nicht verbunden"
     }
 
+    /// Untertitel mit konkreter Handlungsempfehlung
     private var subtitle: String {
         if bt.isConnected {
             return "Das Gerät sendet Messwerte."
@@ -175,6 +199,7 @@ struct ConnectionStatusCard: View {
         return "Warten auf Sensorverbindung."
     }
 
+    /// Ampel-Farbe: grün = verbunden, rot = Problem, orange = suchend
     private var statusColor: Color {
         if bt.isConnected {
             return .green
@@ -188,6 +213,7 @@ struct ConnectionStatusCard: View {
 
 // MARK: - Permission Hints
 
+/// Hinweiskarte, falls Standortdienste / -berechtigungen nicht passen.
 struct LocationPermissionHintView: View {
     @EnvironmentObject var bt: BluetoothManager
 
@@ -206,6 +232,7 @@ struct LocationPermissionHintView: View {
                     .foregroundStyle(.secondary)
 
                 Button {
+                    // Direkt zu den App-Einstellungen springen
                     if let url = URL(string: UIApplication.openSettingsURLString) {
                         UIApplication.shared.open(url)
                     }
@@ -222,6 +249,7 @@ struct LocationPermissionHintView: View {
         .obsCardStyle()
     }
 
+    /// Überschrift abhängig davon, ob GPS global oder nur für die App aus ist
     private var title: String {
         if !bt.isLocationEnabled {
             return "Standortdienste deaktiviert"
@@ -229,6 +257,7 @@ struct LocationPermissionHintView: View {
         return "Standortzugriff erforderlich"
     }
 
+    /// Erklärung, warum GPS benötigt wird
     private var message: String {
         if !bt.isLocationEnabled {
             return "Damit deine Fahrten vollständig aufgezeichnet werden können, müssen die Standortdienste (GPS) auf deinem Gerät aktiviert sein."
@@ -237,6 +266,7 @@ struct LocationPermissionHintView: View {
     }
 }
 
+/// Hinweiskarte für Bluetooth-Einstellungen/Berechtigungen.
 struct BluetoothPermissionHintView: View {
     @EnvironmentObject var bt: BluetoothManager
 
@@ -288,6 +318,9 @@ struct BluetoothPermissionHintView: View {
 
 // MARK: - Measurements Card
 
+/// Karte mit den aktuellen Sensorwerten:
+/// - optional Seitenabstände links/rechts
+/// - Überholabstand (immer sichtbar)
 struct MeasurementsCardView: View {
     @EnvironmentObject var bt: BluetoothManager
     @Binding var showSideDistances: Bool      // steuert Anzeige Seitenabstände
@@ -300,12 +333,13 @@ struct MeasurementsCardView: View {
 
                 Spacer()
 
-                // Toggle steuert, ob die Seitenabstände angezeigt werden
+                // Schalter, ob „Abstand links/rechts“ überhaupt angezeigt werden soll
                 Toggle("Abstände anzeigen", isOn: $showSideDistances)
                     .labelsHidden()
             }
 
-            // Placeholder nur anzeigen, wenn Seitenabstände angezeigt werden sollen
+            // Placeholder-Skelett anzeigen, solange keine Verbindung besteht
+            // (nur wenn Seitenabstände aktiv sind)
             if !bt.isConnected && showSideDistances {
                 VStack(alignment: .leading, spacing: 8) {
                     RoundedRectangle(cornerRadius: 4)
@@ -318,7 +352,7 @@ struct MeasurementsCardView: View {
                 .redacted(reason: .placeholder)
             }
 
-            // Alles unter „Abstand links/rechts“ ein-/ausblenden
+            // Bereich „Abstand links/rechts“ komplett ein-/ausblenden
             if showSideDistances {
                 HStack(alignment: .top, spacing: 32) {
                     SensorValueView(
@@ -353,6 +387,7 @@ struct SensorValueView: View {
     @State private var showMeasuredInfo = false
     @State private var showCalculatedInfo = false
 
+    /// Obergrenze für ProgressView-Skala (200 cm)
     private let maxDistance = 200.0 // 200 cm Skala
 
     var body: some View {
@@ -363,6 +398,7 @@ struct SensorValueView: View {
             // Berechneter Wert
             if let corrected {
                 VStack(alignment: .leading, spacing: 6) {
+                    // Wert in cm prominent anzeigen
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text("\(corrected)")
                             .font(.obsValue)
@@ -372,12 +408,14 @@ struct SensorValueView: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    // Balkenanzeige mit Farbcodierung je nach Abstand
                     ProgressView(
                         value: min(Double(corrected), maxDistance),
                         total: maxDistance
                     )
                     .tint(Color.overtakeColor(for: corrected))
 
+                    // Label + Info-Icon für „Berechnet“
                     HStack(spacing: 4) {
                         Text("Berechnet")
                             .font(.obsFootnote)
@@ -446,7 +484,7 @@ struct SensorValueView: View {
 }
 
 
-// Überholabstand mit Farbcodierung
+// Überholabstand mit Farbcodierung (grün/orange/rot)
 struct OvertakeDistanceView: View {
     let distance: Int?
 
@@ -457,6 +495,7 @@ struct OvertakeDistanceView: View {
 
             if let distance {
                 HStack(spacing: 8) {
+                    // Farbkodierter Indikator (Ampelkreis)
                     Circle()
                         .fill(Color.overtakeColor(for: distance))
                         .frame(width: 12, height: 12)
@@ -481,6 +520,8 @@ struct OvertakeDistanceView: View {
 
 // MARK: - Lenkerbreite
 
+/// Card zum Einstellen der Lenkerbreite in cm.
+/// Wird zur Berechnung des „berechneten“ Überholabstands verwendet.
 struct HandlebarWidthView: View {
     @Binding var handlebarWidthCm: Int
 
@@ -501,6 +542,7 @@ struct HandlebarWidthView: View {
                 Spacer()
             }
 
+            // Stepper zum Anpassen der Lenkerbreite (30–120 cm)
             Stepper(
                 value: $handlebarWidthCm,
                 in: 30...120,
@@ -520,6 +562,7 @@ struct HandlebarWidthView: View {
 
 // MARK: - Record Button
 
+/// Großer Button am unteren Rand zum Starten/Stoppen der Aufnahme.
 struct RecordButtonView: View {
     let isConnected: Bool
     let isRecording: Bool
@@ -564,6 +607,7 @@ struct RecordButtonView: View {
             .scaleEffect(isRecording ? 0.98 : 1.0)
             .animation(.spring(response: 0.25, dampingFraction: 0.85), value: isRecording)
         }
+        // Button nur anklickbar, wenn Sensor verbunden ist
         .disabled(!isConnected)
         .opacity(isConnected ? 1.0 : 0.5)
     }
@@ -571,6 +615,8 @@ struct RecordButtonView: View {
 
 // MARK: - Save Confirmation Toast
 
+/// Kleiner Toast, der nach dem Stoppen der Aufnahme kurz die
+/// Anzahl der Überholvorgänge und die Fahrstrecke anzeigt.
 struct SaveConfirmationToast: View {
     let overtakeCount: Int
     let distanceText: String
@@ -599,6 +645,7 @@ struct SaveConfirmationToast: View {
 
 // MARK: - Styling & Helpers
 
+/// Card-Style-Erweiterung für wiederverwendbare Kartenoptik.
 extension View {
     func obsCardStyle() -> some View {
         self
@@ -610,6 +657,7 @@ extension View {
     }
 }
 
+/// Ampel-Farbskala für Abstände (rot/orange/grün).
 extension Color {
     static func overtakeColor(for distance: Int) -> Color {
         switch distance {

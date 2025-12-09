@@ -1,18 +1,27 @@
+// DataExportView.swift
+
 import SwiftUI
 import UniformTypeIdentifiers
 
 // MARK: - Helper: Speicherung der Überholvorgänge & Distanz pro Datei
 
+/// Speichert Auswertungsdaten (Anzahl Überholvorgänge + Distanz) pro Aufnahmedatei
+/// in `UserDefaults`, verknüpft über den Dateinamen (lastPathComponent).
 struct OvertakeStatsStore {
     private static let countsKey   = "obsOvertakeCounts"
     private static let distanceKey = "obsTrackDistanceMeters"
 
     /// Speichert Anzahl Überholvorgänge und Distanz (in Metern) für eine Datei.
+    ///
+    /// - Parameter count: Anzahl der Überholvorgänge (optional, nur wenn > 0 gespeichert)
+    /// - Parameter distanceMeters: Distanz in Metern (optional, nur wenn > 0 gespeichert)
+    /// - Parameter url: Dateipfad zur .bin-Datei; es wird nur der Dateiname als Schlüssel genutzt.
     static func store(count: Int?, distanceMeters: Double?, for url: URL) {
         let fileKey = url.lastPathComponent
 
         // Counts
         if let count = count, count > 0 {
+            // Bisherige Map aus UserDefaults laden oder leeres Dict anlegen
             var dict = (UserDefaults.standard.dictionary(forKey: countsKey) as? [String: Int]) ?? [:]
             dict[fileKey] = count
             UserDefaults.standard.set(dict, forKey: countsKey)
@@ -27,6 +36,9 @@ struct OvertakeStatsStore {
     }
 
     /// Lädt gespeicherte Überholvorgänge & Distanz (km) für eine Datei.
+    ///
+    /// - Parameter url: Dateipfad zur .bin-Datei.
+    /// - Returns: Tuple aus (Anzahl Überholvorgänge?, Distanz in km?)
     static func load(for url: URL) -> (count: Int?, distanceKm: Double?) {
         let fileKey = url.lastPathComponent
 
@@ -43,6 +55,7 @@ struct OvertakeStatsStore {
 
 // MARK: - Model
 
+/// Metadaten zu einer OBS-Aufnahmedatei (.bin / .csv)
 struct OBSFileInfo: Identifiable {
     let id = UUID()
     let url: URL
@@ -58,7 +71,8 @@ struct OBSFileInfo: Identifiable {
     let distanceKm: Double?
 }
 
-// Wrapper für Share Sheet
+/// Wrapper für das iOS-Share Sheet (UIActivityViewController),
+/// damit es in SwiftUI via .sheet genutzt werden kann.
 struct ActivityView: UIViewControllerRepresentable {
     let activityItems: [Any]
 
@@ -71,8 +85,15 @@ struct ActivityView: UIViewControllerRepresentable {
 
 // MARK: - View
 
+/// Listet aufgezeichnete OBS-Dateien aus dem Documents-Ordner
+/// und ermöglicht:
+/// - Teilen der Datei (Share Sheet)
+/// - Hochladen zum OBS-Portal
+/// - Löschen einzelner oder aller Dateien
+/// - Konfiguration der OBS-Portal-URL und des API-Keys
 struct DataExportView: View {
 
+    /// Alle gefundenen OBS-Dateien (bin/csv) im Documents-Ordner
     @State private var files: [OBSFileInfo] = []
 
     // Sharing
@@ -88,7 +109,7 @@ struct DataExportView: View {
     @State private var uploadStatusMessage: String?
     @State private var isShowingUploadResultAlert: Bool = false
 
-    // Bestätigung für Upload
+    // Bestätigung für Upload (für eine gewählte Datei)
     @State private var isShowingUploadConfirm: Bool = false
     @State private var pendingUploadFile: OBSFileInfo?
 
@@ -113,11 +134,12 @@ struct DataExportView: View {
                 .font(.obsBody)
             }
             .scrollIndicators(.hidden)
+            // Pull-to-Refresh lädt die Dateiliste neu
             .refreshable {
                 loadFiles()
             }
 
-            // Upload-Overlay unten als dezentes Toast
+            // Upload-Overlay unten als dezentes Toast, solange Upload läuft
             if isUploading {
                 VStack {
                     Spacer()
@@ -139,6 +161,7 @@ struct DataExportView: View {
         }
         .navigationTitle("Dateien")
         .toolbar {
+            // Toolbar-Button zum Löschen ALLER Dateien
             ToolbarItem(placement: .topBarTrailing) {
                 Button(role: .destructive) {
                     if !files.isEmpty {
@@ -154,6 +177,7 @@ struct DataExportView: View {
             }
         }
         .onAppear {
+            // Beim Öffnen die aktuelle Dateiliste laden
             loadFiles()
         }
         // Share Sheet
@@ -162,13 +186,13 @@ struct DataExportView: View {
                 ActivityView(activityItems: [url])
             }
         }
-        // Upload-Ergebnis-Alert (mit Dateinamen im Text)
+        // Upload-Ergebnis-Alert (mit Statuscode & Antworttext)
         .alert("Upload", isPresented: $isShowingUploadResultAlert) {
             Button("OK", role: .cancel) { }
         } message: {
             Text(uploadStatusMessage ?? "Unbekannter Fehler")
         }
-        // Upload-Bestätigung
+        // Upload-Bestätigung (Einzeldatei)
         .alert("Upload bestätigen", isPresented: $isShowingUploadConfirm) {
             Button("Hochladen", role: .destructive) {
                 if let file = pendingUploadFile {
@@ -210,7 +234,10 @@ struct DataExportView: View {
 
     // MARK: - Unterviews
 
-    /// OBS-Portal-Konfiguration als Card
+    /// OBS-Portal-Konfiguration als Card:
+    /// - Basis-URL
+    /// - API-Key
+    /// - Statusanzeige, ob Upload möglich ist
     private var portalConfigCard: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
@@ -263,7 +290,7 @@ struct DataExportView: View {
         .obsCardStyle()
     }
 
-    /// Aufnahmen-Abschnitt mit Dateikarten
+    /// Aufnahmen-Abschnitt mit Dateikarten (oder leerem Zustand)
     private var recordingsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Aufnahmen")
@@ -302,7 +329,7 @@ struct DataExportView: View {
         .padding(.vertical, 8)
     }
 
-    /// Einzelne Dateikarte
+    /// Einzelne Dateikarte mit Name, Größe, Datum und optional Stats
     private func fileRow(for file: OBSFileInfo) -> some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 6) {
@@ -333,11 +360,13 @@ struct DataExportView: View {
                     .foregroundStyle(.secondary)
                 }
             }
+            // Bessere VoiceOver-Ausgabe (statt jedes Label einzeln)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(accessibilityText(for: file))
 
             Spacer()
 
+            // Kontextmenü für eine Datei: Teilen / Hochladen / Löschen
             Menu {
                 Button {
                     share(file)
@@ -367,7 +396,7 @@ struct DataExportView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture {
-            // Primäraktion: Hochladen (Upload-Dialog öffnen)
+            // Primäraktion bei Tap auf die Zeile: Upload-Dialog öffnen
             pendingUploadFile = file
             isShowingUploadConfirm = true
         }
@@ -375,6 +404,8 @@ struct DataExportView: View {
 
     // MARK: - Dateien laden (rekursiv im ganzen Documents-Ordner)
 
+    /// Sucht im Documents-Ordner (rekursiv) nach .bin/.csv-Dateien
+    /// und baut daraus eine sortierte Liste von `OBSFileInfo`.
     private func loadFiles() {
         let fm = FileManager.default
 
@@ -388,6 +419,7 @@ struct DataExportView: View {
 
             print("DataExportView: Documents = \(docs.path)")
 
+            // Resource-Keys, die wir für jede Datei auslesen wollen
             let keys: [URLResourceKey] = [
                 .isRegularFileKey,
                 .fileSizeKey,
@@ -410,8 +442,10 @@ struct DataExportView: View {
 
             var found: [OBSFileInfo] = []
 
+            // Alle Dateien durchlaufen (rekursiv)
             for case let url as URL in enumerator {
                 let ext = url.pathExtension.lowercased()
+                // Nur OBS-relevante Dateien
                 guard ext == "bin" || ext == "csv" else { continue }
 
                 do {
@@ -422,6 +456,7 @@ struct DataExportView: View {
                     let date = values.contentModificationDate
                     let dateDesc = date.map { formatter.string(from: $0) } ?? "–"
 
+                    // Überhol-Statistik aus UserDefaults laden
                     let stats = OvertakeStatsStore.load(for: url)
 
                     let info = OBSFileInfo(
@@ -441,7 +476,7 @@ struct DataExportView: View {
 
             print("DataExportView: gefunden \(found.count) .bin/.csv Dateien")
 
-            // Neueste zuerst nach Änderungsdatum, fallback auf Name
+            // Neueste zuerst nach Änderungsdatum, Fallback auf alphabetische Reihenfolge
             files = found.sorted { lhs, rhs in
                 let lDate = lhs.modificationDate ?? .distantPast
                 let rDate = rhs.modificationDate ?? .distantPast
@@ -460,7 +495,8 @@ struct DataExportView: View {
 
     // MARK: - Teilen
 
-    /// Teilt eine KOPIE im tmp-Ordner (Original bleibt im Documents-Ordner)
+    /// Teilt eine KOPIE im tmp-Ordner (Original bleibt im Documents-Ordner).
+    /// So wird verhindert, dass der Share-Empfänger direkt auf das „echte“ File zugreift.
     private func share(_ file: OBSFileInfo) {
         let fm = FileManager.default
 
@@ -485,6 +521,9 @@ struct DataExportView: View {
 
     // MARK: - Hochladen
 
+    /// Startet Upload einer Datei zum OBS-Portal.
+    /// - Prüft zunächst, ob Basis-URL und API-Key vorhanden sind.
+    /// - Zeigt nach Abschluss einen Alert mit Status und Antworttext.
     private func upload(_ file: OBSFileInfo) {
         guard !obsBaseUrl.isEmpty, !obsApiKey.isEmpty else {
             uploadStatusMessage = "Bitte Basis-URL und API-Key ausfüllen."
@@ -522,6 +561,7 @@ struct DataExportView: View {
 
     // MARK: - Löschen
 
+    /// Löscht eine einzelne Datei vom Dateisystem und lädt die Liste neu.
     private func delete(_ file: OBSFileInfo) {
         let fm = FileManager.default
         do {
@@ -532,6 +572,7 @@ struct DataExportView: View {
         }
     }
 
+    /// Löscht alle aktuell gelisteten Dateien.
     private func deleteAll() {
         let fm = FileManager.default
         for file in files {
@@ -546,6 +587,7 @@ struct DataExportView: View {
 
     // MARK: - Helfer
 
+    /// Formatiert eine Byte-Anzahl in ein lesbares Label (B, KB, MB).
     private func formatBytes(_ bytes: Int) -> String {
         let b = Double(bytes)
         if b < 1024 {
@@ -559,6 +601,7 @@ struct DataExportView: View {
         return String(format: "%.2f MB", mb)
     }
 
+    /// Zusammengefasster VoiceOver-Text für eine Datei (Name, Größe, Datum, Stats).
     private func accessibilityText(for file: OBSFileInfo) -> String {
         var parts: [String] = []
         parts.append(file.name)
