@@ -14,8 +14,9 @@ struct ContentView: View {
 
     /// Steuert, ob nach dem Stoppen der Aufnahme kurz ein Toast angezeigt wird
     @State private var showSaveConfirmation = false
+    
     /// Steuert, ob die Distanz links/rechts in der Messkarten-Ansicht angezeigt wird
-    @State private var showSideDistances = true   // steuert Anzeige von Abstand links/rechts
+    @State private var showSideDistances = false   // steuert Anzeige von Abstand links/rechts
 
     var body: some View {
         NavigationStack {
@@ -69,19 +70,16 @@ struct ContentView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    // Navigation zum Datenexport
-                    NavigationLink {
-                        DataExportView()
-                    } label: {
-                        Image(systemName: "folder")
-                    }
-
                     // Navigation zur Info-Seite
                     NavigationLink {
                         InfoView()
                     } label: {
                         Image(systemName: "info.circle")
                     }
+
+                    // WICHTIG:
+                    // Der frühere Ordner-Button, der DataExportView geöffnet hat,
+                    // ist entfernt – DataExportView hängt jetzt unter dem Portal-Tab.
                 }
             }
             // Fester Record-Button am unteren Rand (kleiner „Floating Button“)

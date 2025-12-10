@@ -10,73 +10,19 @@ struct PortalTracksListView: View {
     @State private var showingLogin = false
 
     var body: some View {
-        VStack(spacing: 16) {
-            // Konfig-Bereich für die Portal-URL
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Portal-URL")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        ZStack {
+            Color(.systemGroupedBackground)
+                .ignoresSafeArea()
 
-                TextField("https://portal.openbikesensor.org", text: $obsBaseUrl)
-                    .keyboardType(.URL)
-                    .textInputAutocapitalization(.never)
-                    .disableAutocorrection(true)
-                    .textFieldStyle(.roundedBorder)
-
-                Button("Neu laden") {
-                    Task { await load() }
+            ScrollView {
+                VStack(spacing: 24) {
+                    tracksSection
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(obsBaseUrl.isEmpty || isLoading)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 32)
             }
-            .padding(.horizontal)
-
-            // Liste der Tracks oder Hinweis
-            Group {
-                if obsBaseUrl.isEmpty {
-                    VStack(spacing: 12) {
-                        Text("Keine Portal-URL eingetragen")
-                            .font(.headline)
-                        Text("Trage oben z.B. ein:\nhttps://portal.openbikesensor.org")
-                            .font(.footnote)
-                            .multilineTextAlignment(.center)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding()
-                } else {
-                    List {
-                        if isLoading {
-                            ProgressView("Lade Tracks…")
-                        }
-
-                        ForEach(tracks) { track in
-                            NavigationLink {
-                                // Ziel: Detail-Ansicht
-                                PortalTrackDetailView(baseUrl: obsBaseUrl, track: track)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text((track.title?.isEmpty == false ? track.title! : "(ohne Titel)"))
-                                        .font(.headline)
-                                        .lineLimit(1)
-
-                                    Text("Slug: \(track.slug)")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-
-                                    HStack(spacing: 12) {
-                                        Text(String(format: "Länge: %.2f km", track.length / 1000.0))
-                                        Text("Events: \(track.numEvents)")
-                                    }
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                }
-                                .padding(.vertical, 4)
-                            }
-                        }
-                    }
-
-                }
-            }
+            .scrollIndicators(.hidden)
         }
         .navigationTitle("Portal-Tracks")
         .toolbar {
@@ -96,7 +42,8 @@ struct PortalTracksListView: View {
                     Task { await load() }
                 }
             } else {
-                Text("Keine Portal-URL gesetzt.")
+                Text("Keine Portal-URL gesetzt.\nBitte im Portal-Bereich konfigurieren.")
+                    .multilineTextAlignment(.center)
                     .padding()
             }
         }
@@ -115,11 +62,169 @@ struct PortalTracksListView: View {
         }
     }
 
+    // MARK: - UI
+
+    private var tracksSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                
+
+                Spacer()
+
+                Button {
+                    Task { await load() }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.clockwise")
+                        Text("Neu laden")
+                    }
+                }
+                .buttonStyle(.bordered)
+                .disabled(isLoading || obsBaseUrl.isEmpty)
+            }
+
+            if obsBaseUrl.isEmpty {
+                noBaseUrlCard
+                    .obsCardStyle()
+            } else if isLoading && tracks.isEmpty {
+                loadingCard
+                    .obsCardStyle()
+            } else if tracks.isEmpty {
+                emptyTracksCard
+                    .obsCardStyle()
+            } else {
+                // kleiner Hinweis zum Login (hier nochmal kurz)
+                loginHintInline
+                    .obsCardStyle()
+
+                VStack(spacing: 12) {
+                    if isLoading {
+                        loadingInlineRow
+                    }
+
+                    ForEach(tracks) { track in
+                        trackCard(for: track)
+                            .obsCardStyle()
+                    }
+                }
+            }
+        }
+    }
+
+    private var noBaseUrlCard: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 32))
+                .foregroundStyle(.orange)
+
+            Text("Keine Portal-URL eingetragen")
+                .font(.obsSectionTitle)
+
+            Text("Bitte im Bereich „Portal“ die Portal-URL konfigurieren.")
+                .font(.obsFootnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+
+    private var loadingCard: some View {
+        HStack(spacing: 12) {
+            ProgressView()
+            Text("Lade Tracks…")
+                .font(.obsBody)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var emptyTracksCard: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "bicycle")
+                .font(.system(size: 40))
+                .foregroundStyle(.secondary)
+
+            Text("Keine Tracks gefunden")
+                .font(.obsSectionTitle)
+
+            Text("Es wurden noch keine Fahrten im Portal gespeichert oder es gibt momentan keine eigenen Tracks.")
+                .font(.obsFootnote)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+
+    /// Kurz-Hinweis, dass der Login über den Button oben rechts läuft
+    private var loginHintInline: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(.secondary)
+                Text("Login-Hinweis")
+                    .font(.obsSectionTitle)
+            }
+            Text("Falls keine oder nur wenige Fahrten angezeigt werden, prüfe, ob du oben rechts über „Login“ im OBS-Portal angemeldet bist.")
+                .font(.obsFootnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var loadingInlineRow: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+            Text("Aktualisiere Liste…")
+                .font(.obsFootnote)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func trackCard(for track: PortalTrackSummary) -> some View {
+        NavigationLink {
+            PortalTrackDetailView(baseUrl: obsBaseUrl, track: track)
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(track.title?.isEmpty == false ? track.title! : "(ohne Titel)")
+                    .font(.obsSectionTitle)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+
+                Text("Portal-ID: \(track.slug)")
+                    .font(.obsCaption)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 12) {
+                    Text(String(format: "Länge: %.2f km", track.length / 1000.0))
+                    Text("Dauer: \(formattedDuration(track.duration))")
+                    Text("Events: \(track.numEvents)")
+                }
+                .font(.obsCaption)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func formattedDuration(_ seconds: Double) -> String {
+        let s = Int(seconds)
+        let hours = s / 3600
+        let minutes = (s % 3600) / 60
+        if hours > 0 {
+            return "\(hours) h \(minutes) min"
+        } else {
+            return "\(minutes) min"
+        }
+    }
+
     // MARK: - Laden der eigenen Tracks (Feed)
 
     private func load() async {
         guard !obsBaseUrl.isEmpty else {
-            errorMessage = "Portal-URL ist leer. Bitte z.B. https://portal.openbikesensor.org eintragen."
+            errorMessage = "Portal-URL ist leer. Bitte im Bereich „Portal“ eintragen."
             tracks = []
             return
         }
@@ -130,8 +235,6 @@ struct PortalTracksListView: View {
 
         do {
             let client = PortalApiClient(baseUrl: obsBaseUrl)
-
-            // Eigene Fahrten (Feed):
             let result = try await client.fetchMyTracks(limit: 20)
             tracks = result.tracks
             errorMessage = nil
@@ -142,30 +245,24 @@ struct PortalTracksListView: View {
             errorMessage = "Nicht im Portal eingeloggt.\nBitte oben auf „Login“ tippen und dich anmelden."
             tracks = []
         } catch PortalApiError.invalidBaseUrl {
-            print("PortalTracksListView: invalidBaseUrl – obsBaseUrl = \(obsBaseUrl)")
             errorMessage = """
             Portal-URL ist ungültig:
 
             \(obsBaseUrl)
 
-            Bitte inkl. https:// eintragen, z.B.
-            https://portal.openbikesensor.org
+            Bitte im Bereich „Portal“ inkl. https:// eintragen.
             """
             tracks = []
         } catch PortalApiError.invalidURL {
-            print("PortalTracksListView: invalidURL – obsBaseUrl = \(obsBaseUrl)")
             errorMessage = "Interne URL konnte nicht gebaut werden.\nBitte Portal-URL prüfen."
             tracks = []
         } catch PortalApiError.noHTTPResponse {
-            print("PortalTracksListView: noHTTPResponse")
             errorMessage = "Keine gültige HTTP-Antwort vom Portal erhalten.\nIst das Portal erreichbar?"
             tracks = []
         } catch let PortalApiError.httpError(status, body) {
-            print("PortalTracksListView: httpError \(status) – Body: \(body)")
             errorMessage = "Serverfehler \(status).\nAntwort:\n\(body)"
             tracks = []
         } catch {
-            print("PortalTracksListView: unbekannter Fehler: \(error)")
             errorMessage = "Unbekannter Fehler: \(error.localizedDescription)"
             tracks = []
         }
@@ -173,7 +270,7 @@ struct PortalTracksListView: View {
 }
 
 #Preview {
-    NavigationView {
+    NavigationStack {
         PortalTracksListView()
     }
 }

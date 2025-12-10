@@ -14,8 +14,11 @@ struct PortalTrackDetailView: View {
     @State private var mapEvents: [OvertakeEvent] = []
     @State private var isLoadingMap = false
 
-    // Details ein-/ausklappbar
-    @State private var showDetails = true
+    // Details ein-/ausklappbar – standardmäßig EINGEklappt (zu)
+    @State private var showDetails = false
+
+    // NEW: Fullscreen-State für die Karte
+    @State private var showFullscreenMap = false
 
     init(baseUrl: String, track: PortalTrackSummary) {
         self.baseUrl = baseUrl
@@ -24,101 +27,21 @@ struct PortalTrackDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                // Titel / Slug
-                Text(track.title?.isEmpty == false ? track.title! : "(ohne Titel)")
-                    .font(.title2)
-                    .bold()
+        ZStack {
+            Color(.systemGroupedBackground)
+                .ignoresSafeArea()
 
-                Text("Slug: \(track.slug)")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-
-                // MARK: Karte
-
-                Divider().padding(.vertical, 8)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Karte")
-                        .font(.headline)
-
-                    if !mapRoute.isEmpty {
-                        PortalTrackMapView(route: mapRoute, events: mapEvents)
-                            .frame(height: 300)
-                            .cornerRadius(12)
-                            .clipped()
-                    } else if isLoadingMap {
-                        HStack {
-                            ProgressView()
-                            Text("Lade Track-Daten…")
-                        }
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    } else {
-                        Button("Karte laden") {
-                            Task { await loadTrackData() }
-                        }
-                        .buttonStyle(.bordered)
-                    }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    headerCard
+                    mapCard
+                    detailsCard
                 }
-
-                // MARK: einklappbare Details
-
-                Divider().padding(.vertical, 8)
-
-                DisclosureGroup(
-                    isExpanded: $showDetails,
-                    content: {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Group {
-                                detailRow(label: "Autor", value: track.author.displayName)
-                                detailRow(label: "Öffentlich", value: track.isPublic ? "Ja" : "Nein")
-                                detailRow(label: "Status", value: track.processingStatus)
-
-                                detailRow(label: "Aufzeichnung von", value: track.recordedAt)
-                                detailRow(label: "bis", value: track.recordedUntil)
-
-                                detailRow(label: "Länge", value: String(format: "%.2f km", track.length / 1000.0))
-                                detailRow(label: "Dauer", value: formattedDuration(track.duration))
-
-                                detailRow(label: "Events", value: "\(track.numEvents)")
-                                detailRow(label: "Gültige Events", value: "\(track.numValid)")
-                                detailRow(label: "Messpunkte", value: "\(track.numMeasurements)")
-                            }
-
-                            if let desc = track.description, !desc.isEmpty {
-                                Divider().padding(.vertical, 4)
-                                Text("Beschreibung")
-                                    .font(.headline)
-                                Text(desc)
-                            }
-
-                            if isLoading {
-                                Divider().padding(.vertical, 4)
-                                HStack {
-                                    ProgressView()
-                                    Text("Lade Details…")
-                                }
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                            }
-                        }
-                        .padding(.top, 4)
-                    },
-                    label: {
-                        HStack {
-                            Text("Details")
-                                .font(.headline)
-                            Spacer()
-                            Text(showDetails ? "Einklappen" : "Ausklappen")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                )
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 32)
             }
-            .padding()
+            .scrollIndicators(.hidden)
         }
         .navigationTitle("Track-Details")
         .navigationBarTitleDisplayMode(.inline)
@@ -139,18 +62,192 @@ struct PortalTrackDetailView: View {
         } message: {
             Text(errorMessage ?? "")
         }
+        // Fullscreen-Karte
+        .fullScreenCover(isPresented: $showFullscreenMap) {
+            ZStack(alignment: .topTrailing) {
+                PortalTrackMapView(route: mapRoute, events: mapEvents)
+                    .ignoresSafeArea()
+
+                Button {
+                    showFullscreenMap = false
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 30))
+                        .padding()
+                        .background(.thinMaterial)
+                        .clipShape(Circle())
+                }
+                .padding()
+            }
+        }
+    }
+
+    // MARK: - Cards
+
+    /// Kopfkarte mit Titel, Autor und ein paar Kennzahlen
+    private var headerCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(track.title?.isEmpty == false ? track.title! : "(ohne Titel)")
+                .font(.obsScreenTitle)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+
+            HStack(spacing: 8) {
+                Image(systemName: "person")
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+
+                Text(track.author.displayName)
+                    .font(.obsFootnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            // Aufzeichnungszeitraum – Strings sind nicht optional, also direkt verwenden
+            if !track.recordedAt.isEmpty || !track.recordedUntil.isEmpty {
+                Text("Aufzeichnung: \(track.recordedAt) – \(track.recordedUntil)")
+                    .font(.obsFootnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 12) {
+                Text(String(format: "Länge: %.2f km", track.length / 1000.0))
+                Text("Dauer: \(formattedDuration(track.duration))")
+                Text("Events: \(track.numEvents)")
+            }
+            .font(.obsCaption)
+            .monospacedDigit()
+            .foregroundStyle(.secondary)
+            .padding(.top, 4)
+        }
+        .obsCardStyle()
+    }
+
+    /// Karte mit der PortalTrackMapView bzw. Ladezustand
+    private var mapCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Karte")
+                .font(.obsSectionTitle)
+
+            if !mapRoute.isEmpty {
+                ZStack(alignment: .topTrailing) {
+                    PortalTrackMapView(route: mapRoute, events: mapEvents)
+                        .frame(height: 300)
+                        .cornerRadius(12)
+                        .clipped()
+                        // Optional: Karte selbst tappbar für Fullscreen
+                        .onTapGesture {
+                            showFullscreenMap = true
+                        }
+
+                    // Button zum Fullscreen-Öffnen
+                    Button {
+                        showFullscreenMap = true
+                    } label: {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .padding(8)
+                            .background(.thinMaterial)
+                            .clipShape(Circle())
+                    }
+                    .padding(8)
+                }
+            } else if isLoadingMap {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("Lade Track-Daten…")
+                        .font(.obsFootnote)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Button {
+                    Task { await loadTrackData() }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "map")
+                        Text("Karte laden")
+                    }
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .obsCardStyle()
+    }
+
+    /// Karte mit einklappbaren Details (standardmäßig zu)
+    private var detailsCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            DisclosureGroup(
+                isExpanded: $showDetails,
+                content: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Group {
+                            detailRow(
+                                label: "Titel",
+                                value: track.title?.isEmpty == false ? track.title! : "(ohne Titel)"
+                            )
+                            detailRow(label: "Portal-ID", value: track.slug) // statt „Slug“
+
+                            detailRow(label: "Autor", value: track.author.displayName)
+                            detailRow(label: "Öffentlich", value: track.isPublic ? "Ja" : "Nein")
+                            detailRow(label: "Status", value: track.processingStatus)
+
+                            detailRow(label: "Aufzeichnung von", value: track.recordedAt)
+                            detailRow(label: "bis", value: track.recordedUntil)
+
+                            detailRow(label: "Länge", value: String(format: "%.2f km", track.length / 1000.0))
+                            detailRow(label: "Dauer", value: formattedDuration(track.duration))
+
+                            detailRow(label: "Events", value: "\(track.numEvents)")
+                            detailRow(label: "Gültige Events", value: "\(track.numValid)")
+                            detailRow(label: "Messpunkte", value: "\(track.numMeasurements)")
+                        }
+
+                        if let desc = track.description, !desc.isEmpty {
+                            Divider().padding(.vertical, 4)
+                            Text("Beschreibung")
+                                .font(.headline)
+                            Text(desc)
+                                .font(.obsBody)
+                        }
+
+                        if isLoading {
+                            Divider().padding(.vertical, 4)
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                Text("Lade Details…")
+                                    .font(.obsFootnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .padding(.top, 4)
+                },
+                label: {
+                    HStack {
+                        Text("Details")
+                            .font(.obsSectionTitle)
+                        Spacer()
+                        Text(showDetails ? "Einklappen" : "Ausklappen")
+                            .font(.obsFootnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            )
+        }
+        .obsCardStyle()
     }
 
     // MARK: - Hilfs-UI
 
-    private func detailRow(label: String, value: String) -> some View {
-        HStack {
+    private func detailRow(label: String, value: String?) -> some View {
+        let text = (value?.isEmpty == false ? value! : "–")
+
+        return HStack {
             Text(label)
-                .font(.subheadline)
+                .font(.obsFootnote)
                 .foregroundStyle(.secondary)
             Spacer()
-            Text(value)
-                .font(.subheadline)
+            Text(text)
+                .font(.obsFootnote)
         }
     }
 

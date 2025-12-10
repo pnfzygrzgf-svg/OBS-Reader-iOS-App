@@ -31,13 +31,13 @@ extension Font {
 // sondern sprechende Rollen wie .obsScreenTitle, .obsBody, etc.
 
 extension Font {
-    /// Titel oben im Screen (z.B. „Messwerte“, „Aufnahmen“)
+    /// Titel oben im Screen (z.B. „Messwerte“, „Fahrtaufzeichnungen“)
     /// Relativ groß und fett für prominente Überschriften.
     static var obsScreenTitle: Font {
         .obs(size: 24, weight: .bold)
     }
 
-    /// Abschnittsüberschrift (z.B. „Sensor links“, „Aufnahmen“)
+    /// Abschnittsüberschrift (z.B. „Sensor links“, „Fahrtaufzeichnungen“)
     /// Etwas kleiner als Screen-Titel, aber hervorgehoben.
     static var obsSectionTitle: Font {
         .obs(.headline, weight: .semibold)
