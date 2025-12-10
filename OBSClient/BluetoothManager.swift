@@ -548,7 +548,8 @@ extension BluetoothManager: CBPeripheralDelegate {
 
     // MARK: - BIN Schreiblogik
 
-    /// Nimmt ein vom Sensor empfangenes Event und versieht es mit einem zusätzlichen Zeitstempel,
+    /// Nimmt ein vom Sensor empfangenes Event, korrigiert ggf. den Abstand
+    /// um die halbe Lenkerbreite und versieht es mit einem zusätzlichen Zeitstempel,
     /// bevor es in die BIN-Datei geschrieben wird.
     private func storeIncomingSensorEvent(_ event: Openbikesensor_Event) {
         // Nur während einer laufenden Aufnahme speichern
@@ -556,7 +557,26 @@ extension BluetoothManager: CBPeripheralDelegate {
 
         var e = event
 
-        // Aktuelle Zeit als OBS-Time an das Event anhängen
+        // 1) Lenkerbreite-Korrektur NUR für DistanceMeasurement anwenden
+        //
+        // - dm.distance ist in Metern
+        // - handlebarWidthCm ist die volle Lenkerbreite in cm
+        //   -> wir ziehen die halbe Lenkerbreite ab (als Meter)
+        if case .distanceMeasurement(var dm) = e.content {
+            let rawMeters = Double(dm.distance)
+
+            if rawMeters > 0.0 {
+                let handlebarHalfCm     = Double(handlebarWidthCm) / 2.0
+                let handlebarHalfMeters = handlebarHalfCm / 100.0
+                let correctedMeters     = max(0.0, rawMeters - handlebarHalfMeters)
+
+                dm.distance = Float(correctedMeters)
+                // Wichtig: das geänderte DistanceMeasurement wieder in das Event zurückschreiben
+                e.distanceMeasurement = dm
+            }
+        }
+
+        // 2) Aktuelle Zeit als OBS-Time an das Event anhängen
         var t = Openbikesensor_Time()
         let now = Date().timeIntervalSince1970
         let sec = Int64(now)
@@ -568,6 +588,7 @@ extension BluetoothManager: CBPeripheralDelegate {
 
         e.time.append(t)
 
+        // 3) Korrigiertes Event in die BIN-Datei schreiben
         storeEventToBin(e)
     }
 
