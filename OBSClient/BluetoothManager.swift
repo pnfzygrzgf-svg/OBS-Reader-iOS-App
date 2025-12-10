@@ -4,226 +4,251 @@ import SwiftProtobuf
 import Combine
 import CoreLocation
 
-// UUIDs müssen mit der Firmware übereinstimmen
-// Service-UUID des OpenBikeSensor
-private let obsServiceUUID = CBUUID(string: "6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
-// Charakteristik-UUID für TX (Daten vom OBS -> iPhone)
-private let obsCharTxUUID  = CBUUID(string: "6E400003-B5A3-F393-E0A9-E50E24DCCA9E")
+// MARK: - UUIDs
 
-/// Zentrale Bluetooth-Verwaltung + Standort + Aufnahmelogik
-/// - kümmert sich ums Scannen, Verbinden, Lesen der BLE-Daten
-/// - schreibt Events in eine BIN-Datei im OBS-Format
-/// - berechnet Vorschauwerte für die UI
+// OBS Lite: UART-ähnlicher Service (Protobuf-Events)
+private let obsLiteServiceUUID  = CBUUID(string: "6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
+private let obsLiteCharTxUUID   = CBUUID(string: "6E400003-B5A3-F393-E0A9-E50E24DCCA9E")
+
+// OBS Classic: eigener OBS-Service mit mehreren Characteristics
+private let obsClassicServiceUUID        = CBUUID(string: "1FE7FAF9-CE63-4236-0004-000000000000")
+private let obsClassicDistanceCharUUID   = CBUUID(string: "1FE7FAF9-CE63-4236-0004-000000000002")
+private let obsClassicButtonCharUUID     = CBUUID(string: "1FE7FAF9-CE63-4236-0004-000000000003")
+private let obsClassicOffsetCharUUID     = CBUUID(string: "1FE7FAF9-CE63-4236-0004-000000000004")
+private let obsClassicTrackIdCharUUID    = CBUUID(string: "1FE7FAF9-CE63-4236-0004-000000000005")
+
+// Batterie-Service
+private let batteryServiceUUID           = CBUUID(string: "0000180F-0000-1000-8000-00805F9B34FB")
+private let batteryLevelCharUUID         = CBUUID(string: "00002A19-0000-1000-8000-00805F9B34FB")
+
+// Device-Info-Service (Firmware, Hersteller)
+private let deviceInfoServiceUUID        = CBUUID(string: "0000180A-0000-1000-8000-00805F9B34FB")
+private let firmwareRevisionCharUUID     = CBUUID(string: "00002A26-0000-1000-8000-00805F9B34FB")
+private let manufacturerNameCharUUID     = CBUUID(string: "00002A29-0000-1000-8000-00805F9B34FB")
+
+// MARK: - Gerätetyp
+
+enum ObsDeviceType: String, CaseIterable, Identifiable {
+    case lite
+    case classic
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .lite:    return "OBS Lite"
+        case .classic: return "OBS Classic"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .lite:
+            return "Verwendet OBS Lite mit Protobuf/BIN-Datei."
+        case .classic:
+            return "Verwendet OBS Classic und speichert Daten als CSV."
+        }
+    }
+}
+
+// MARK: - BluetoothManager
+
 final class BluetoothManager: NSObject, ObservableObject {
 
-    // MARK: - Published State
-    // Diese Properties sind mit SwiftUI/Combine verknüpft und aktualisieren das UI automatisch.
+    // MARK: Published State (für SwiftUI)
 
-    /// Ist Bluetooth auf Systemebene eingeschaltet?
+    @Published var deviceType: ObsDeviceType = .lite
+
     @Published var isPoweredOn: Bool = false
-    /// Ist aktuell ein OpenBikeSensor verbunden?
     @Published var isConnected: Bool = false
-    /// Läuft gerade eine Aufnahmesession (BIN-Datei)?
     @Published var isRecording: Bool = false
 
-    /// Hat die App Bluetooth-Berechtigung (iOS-Authorization)?
     @Published var hasBluetoothPermission: Bool = true
 
-    /// Sind Standortdienste (GPS) auf Systemebene aktiviert?
     @Published var isLocationEnabled: Bool = false
-
-    /// Hat die App Standort-Berechtigung "Immer"?
     @Published var hasLocationAlwaysPermission: Bool = false
 
-    /// Zuletzt empfangenes OBS-Event (vom Sensor oder GPS)
     @Published var lastEvent: Openbikesensor_Event?
-    /// Letzte Fehlermeldung für das UI
     @Published var lastError: String?
 
-    /// Einfacher Text mit letzter Distanz (für Debug/Anzeige)
     @Published var lastDistanceText: String = "Noch keine Messung. Starte eine Aufnahme, um Werte zu sehen."
 
-    /// Letzte Text-/UserInput-Nachricht des Sensors
     @Published var lastMessageText: String = ""
 
-    /// Vorschau-Texte für linke/rechte Seite und Überholabstand
     @Published var leftDistanceText: String = "Links: Noch keine Messung."
     @Published var rightDistanceText: String = "Rechts: Noch keine Messung."
     @Published var overtakeDistanceText: String = "Überholabstand: Noch keine Messung."
 
-    /// Letzter Median am Zeitpunkt eines Button-Drucks (cm)
     @Published var lastMedianAtPressCm: Int?
 
-    /// Roh- und korrigierte Werte in cm für die beiden Sensoren (für ContentView-Anzeige)
     @Published var leftRawCm: Int?
     @Published var leftCorrectedCm: Int?
 
     @Published var rightRawCm: Int?
     @Published var rightCorrectedCm: Int?
 
-    /// Letzter berechneter Überholabstand in cm (für UI-Anzeige)
     @Published var overtakeDistanceCm: Int?
 
-    /// Lenkerbreite in cm (einstellbar im UI, mit Min/Max-Begrenzung)
     @Published var handlebarWidthCm: Int = 60 {
         didSet {
-            // Eingabe begrenzen, damit keine unsinnigen Werte gespeichert werden
             if handlebarWidthCm < 30 { handlebarWidthCm = 30 }
             if handlebarWidthCm > 120 { handlebarWidthCm = 120 }
             UserDefaults.standard.set(handlebarWidthCm, forKey: "handlebarWidthCm")
         }
     }
 
-    /// Anzahl der Überholvorgänge (Tastendrücke) in der aktuellen/zuletzt beendeten Aufnahme
     @Published var currentOvertakeCount: Int = 0
-
-    /// Aufsummierte Distanz der aktuellen/zuletzt beendeten Aufnahme (in Metern)
     @Published var currentDistanceMeters: Double = 0
+
+    @Published var batteryLevelPercent: Int?
+    @Published var firmwareRevision: String?
 
     // MARK: - Private
 
-    /// CoreBluetooth-Zentrale zum Scannen/Verbinden
     private var central: CBCentralManager!
-    /// Das verbundene OBS-Peripheral (wenn vorhanden)
     private var peripheral: CBPeripheral?
-    /// Charakteristik, auf der die Daten-Notifications kommen
-    private var notifyCharacteristic: CBCharacteristic?
 
-    /// Median über korrigierte Abstände (nur Sensor sourceID == 1, linker Sensor)
-    /// - windowSize: wie viele letzte Werte zur Median-Berechnung
-    /// - maxSamples: maximal gespeicherte Historie (Speicherlimit)
-    private var movingMedian = MovingMedian(windowSize: 3,
-                                            maxSamples: 122)
+    private var classicDistanceChar: CBCharacteristic?
+    private var classicButtonChar: CBCharacteristic?
+    private var classicOffsetChar: CBCharacteristic?
+    private var classicTrackIdChar: CBCharacteristic?
 
-    /// Location Manager nur zur Abfrage der Berechtigung und Statusänderungen
     private let locationManager = CLLocationManager()
 
-    /// Writer für die BIN-Datei im OBS-Binärformat
+    // Lite: schreibt BIN-Dateien
     private let binWriter = OBSFileWriter()
+    // Classic: schreibt CSV-Dateien
+    private var classicCsvRecorder: ClassicCsvRecorder?
 
-    /// Letzte GPS-Position während der Aufnahme (für Distanz-Berechnung Segment für Segment)
     private var lastLocation: CLLocation?
+
+    private var movingMedian = MovingMedian(windowSize: 3, maxSamples: 122)
 
     // MARK: - Init
 
     override init() {
         super.init()
 
-        // Gespeicherte Lenkerbreite laden (falls vorhanden)
         let stored = UserDefaults.standard.integer(forKey: "handlebarWidthCm")
         if stored != 0 {
             handlebarWidthCm = stored
         }
 
-        // Bluetooth-Central initialisieren
-        // CBCentralManagerOptionShowPowerAlertKey: false unterdrückt das System-Pop-up,
-        // falls Bluetooth ausgeschaltet ist.
+        if let storedType = UserDefaults.standard.string(forKey: "obsDeviceType"),
+           let t = ObsDeviceType(rawValue: storedType) {
+            deviceType = t
+        }
+
         central = CBCentralManager(
             delegate: self,
-            queue: nil, // main queue
-            options: [
-                CBCentralManagerOptionShowPowerAlertKey: false
-            ]
+            queue: nil,
+            options: [CBCentralManagerOptionShowPowerAlertKey: false]
         )
 
-        // Location-Berechtigung beobachten
         locationManager.delegate = self
         updateLocationAuthorizationStatus()
     }
 
     // MARK: - Recording API
-    // Öffentliche Methoden, um eine Mess-Session zu starten/beenden.
 
-    /// Startet eine neue Aufnahmesession
     func startRecording() {
-        // Neue Datei / Session im Writer beginnen
-        binWriter.startSession()
+        // Zähler zurücksetzen
         DispatchQueue.main.async {
-            // Zähler und Distanz zurücksetzen
             self.currentOvertakeCount = 0
             self.currentDistanceMeters = 0
             self.lastLocation = nil
             self.isRecording = true
         }
+
+        switch deviceType {
+        case .lite:
+            // BIN-Recorder (Events werden vor dem Schreiben korrigiert)
+            binWriter.startSession()
+
+        case .classic:
+            // CSV-Recorder – hier wird der Handlebar-Offset bereits in den CSV-Encoder gegeben
+            let halfHandlebar = handlebarWidthCm / 2
+            let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+            let recorder = ClassicCsvRecorder(
+                handlebarOffsetCm: halfHandlebar,
+                appVersion: appVersion,
+                firmwareVersion: firmwareRevision
+            )
+            classicCsvRecorder = recorder
+            recorder.startSession()
+        }
     }
 
-    /// Beendet die aktuelle Aufnahmesession und hängt Statistik an die Datei an
     func stopRecording() {
-        // Session beenden und Datei schließen
-        binWriter.finishSession()
+        switch deviceType {
+        case .lite:
+            binWriter.finishSession()
 
-        // Zähler & Distanz an die entstandene Datei "dranhängen"
-        if let fileURL = binWriter.fileURL {
+        case .classic:
+            classicCsvRecorder?.finishSession()
+        }
+
+        // Statistik an Datei hängen (egal ob BIN oder CSV)
+        let fileURL = (deviceType == .lite) ? binWriter.fileURL : classicCsvRecorder?.fileURL
+        if let url = fileURL {
             let hasCount = currentOvertakeCount > 0
             let hasDistance = currentDistanceMeters > 0.0
 
-            // Nur schreiben, wenn es auch wirklich Werte gibt
             if hasCount || hasDistance {
                 OvertakeStatsStore.store(
                     count: hasCount ? currentOvertakeCount : nil,
                     distanceMeters: hasDistance ? currentDistanceMeters : nil,
-                    for: fileURL
+                    for: url
                 )
             }
         }
 
-        // Aufnahmeflag im UI zurücksetzen
         DispatchQueue.main.async {
             self.isRecording = false
-            // currentOvertakeCount & currentDistanceMeters bleiben stehen,
-            // damit das UI sie nach dem Stoppen anzeigen kann
         }
     }
 
-    /// Wird vom LocationManager oder App-Code aufgerufen, um GPS-Geolocation-Events zu schreiben
-    /// und die gefahrene Distanz live zu summieren.
+    // MARK: - GPS
+
     func handleLocationUpdate(_ location: CLLocation) {
-        // Nur während einer laufenden Aufnahme interessiert uns GPS
         guard isRecording else { return }
 
-        // 1) Distanz live aufsummieren
         if let prev = lastLocation {
-            let segment = location.distance(from: prev) // Distanz in Metern
-            // einfache Plausibilitätsfilter gegen Ausreißer (z.B. Sprünge im GPS)
+            let segment = location.distance(from: prev)
             if segment > 0, segment < 2000 {
                 currentDistanceMeters += segment
             }
         }
-        // Aktuelle Position merken für das nächste Segment
         lastLocation = location
 
-        // 2) BIN: Geolocation-Event erstellen und schreiben
-        var geo = Openbikesensor_Geolocation()
-        geo.latitude = location.coordinate.latitude
-        geo.longitude = location.coordinate.longitude
-        geo.altitude = location.altitude
-        // Negative Geschwindigkeiten vermeiden (z.B. bei ungültigen Werten)
-        geo.groundSpeed = Float(max(location.speed, 0))
-        geo.hdop = Float(location.horizontalAccuracy)
+        // Für Lite schreiben wir Geolocation-Events ins BIN-File
+        if deviceType == .lite {
+            var geo = Openbikesensor_Geolocation()
+            geo.latitude = location.coordinate.latitude
+            geo.longitude = location.coordinate.longitude
+            geo.altitude = location.altitude
+            geo.groundSpeed = Float(max(location.speed, 0))
+            geo.hdop = Float(location.horizontalAccuracy)
 
-        // Zeitstempel im OBS-Time-Format aufbauen (Unix-Zeit)
-        var t = Openbikesensor_Time()
-        let ts = location.timestamp.timeIntervalSince1970
-        let sec = Int64(ts)
-        let nanos = Int32((ts - Double(sec)) * 1_000_000_000)
-        t.sourceID = 3
-        t.seconds = sec
-        t.nanoseconds = nanos
-        t.reference = .unix
+            var t = Openbikesensor_Time()
+            let ts = location.timestamp.timeIntervalSince1970
+            let sec = Int64(ts)
+            let nanos = Int32((ts - Double(sec)) * 1_000_000_000)
+            t.sourceID = 3
+            t.seconds = sec
+            t.nanoseconds = nanos
+            t.reference = .unix
 
-        // Event zusammenbauen
-        var event = Openbikesensor_Event()
-        event.geolocation = geo
-        event.time = [t]
+            var event = Openbikesensor_Event()
+            event.geolocation = geo
+            event.time = [t]
 
-        // Event in BIN-Datei speichern
-        storeEventToBin(event)
+            storeEventToBin(event)
+        }
     }
 
     // MARK: - Location-Berechtigung
 
-    /// Liest den aktuellen Standort-Berechtigungs- und Dienstestatus aus
-    /// und aktualisiert die Published-Properties für das UI.
     private func updateLocationAuthorizationStatus() {
         let status: CLAuthorizationStatus
         if #available(iOS 14.0, *) {
@@ -232,41 +257,41 @@ final class BluetoothManager: NSObject, ObservableObject {
             status = CLLocationManager.authorizationStatus()
         }
 
-        // App-spezifische Berechtigung "Immer"
         let hasAlways = (status == .authorizedAlways)
 
-        // Standortdienste (GPS) NICHT auf dem Main-Thread abfragen
         DispatchQueue.global(qos: .utility).async {
             let servicesEnabled = CLLocationManager.locationServicesEnabled()
 
             DispatchQueue.main.async {
-                // Systemweite Standortdienste (GPS) an/aus
                 self.isLocationEnabled = servicesEnabled
-                // App-spezifische Berechtigung "Immer"
                 self.hasLocationAlwaysPermission = hasAlways
             }
+        }
+    }
+
+    private var serviceUUIDsForCurrentDevice: [CBUUID]? {
+        switch deviceType {
+        case .lite:
+            return [obsLiteServiceUUID]
+        case .classic:
+            return [obsClassicServiceUUID]
         }
     }
 }
 
 // MARK: - CBCentralManagerDelegate
-// Hier wird auf Änderungen des Bluetooth-Zustands & Verbindungsstatus reagiert.
 
 extension BluetoothManager: CBCentralManagerDelegate {
 
-    /// Wird aufgerufen, wenn sich der Bluetooth-Status ändert (ein/aus, Berechtigung etc.)
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        // Berechtigung bestimmen
         let hasPermission: Bool
         if #available(iOS 13.0, *) {
             let auth = CBCentralManager.authorization
             hasPermission = (auth == .allowedAlways)
         } else {
-            // Vor iOS 13 gab es dieses API noch nicht, daher: assume true
             hasPermission = true
         }
 
-        // UI-Status aktualisieren
         DispatchQueue.main.async {
             self.hasBluetoothPermission = hasPermission
             self.isPoweredOn = (central.state == .poweredOn)
@@ -275,43 +300,38 @@ extension BluetoothManager: CBCentralManagerDelegate {
             }
         }
 
-        // Ohne Power oder ohne Berechtigung: nichts scannen
         guard central.state == .poweredOn, hasPermission else { return }
 
-        // Nach OpenBikeSensor-Peripherals scannen, die den passenden Service anbieten
+        UserDefaults.standard.set(deviceType.rawValue, forKey: "obsDeviceType")
+
         central.scanForPeripherals(
-            withServices: [obsServiceUUID],
+            withServices: serviceUUIDsForCurrentDevice,
             options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
         )
     }
 
-    /// Wird aufgerufen, wenn ein passendes Peripheral gefunden wird
     func centralManager(_ central: CBCentralManager,
                         didDiscover peripheral: CBPeripheral,
                         advertisementData: [String : Any],
                         rssi RSSI: NSNumber) {
 
-        // Gefundenes OBS-Peripheral merken
         self.peripheral = peripheral
         self.peripheral?.delegate = self
 
-        // Scan stoppen, damit wir uns verbinden können
         central.stopScan()
         central.connect(peripheral, options: nil)
     }
 
-    /// Erfolgreich mit Peripheral verbunden
     func centralManager(_ central: CBCentralManager,
                         didConnect peripheral: CBPeripheral) {
         DispatchQueue.main.async {
             self.isConnected = true
             self.lastError = nil
         }
-        // Nach dem OBS-Service auf dem Peripheral suchen
-        peripheral.discoverServices([obsServiceUUID])
+
+        peripheral.discoverServices(nil)
     }
 
-    /// Verbindungsaufbau ist fehlgeschlagen
     func centralManager(_ central: CBCentralManager,
                         didFailToConnect peripheral: CBPeripheral,
                         error: Error?) {
@@ -320,14 +340,12 @@ extension BluetoothManager: CBCentralManagerDelegate {
             self.lastError = error?.localizedDescription ?? "Verbindung fehlgeschlagen"
         }
 
-        // Erneut scannen, um es wieder zu versuchen
         central.scanForPeripherals(
-            withServices: [obsServiceUUID],
+            withServices: serviceUUIDsForCurrentDevice,
             options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
         )
     }
 
-    /// Peripheral wurde getrennt (gewollt oder ungewollt)
     func centralManager(_ central: CBCentralManager,
                         didDisconnectPeripheral peripheral: CBPeripheral,
                         error: Error?) {
@@ -338,19 +356,17 @@ extension BluetoothManager: CBCentralManagerDelegate {
             }
         }
 
-        // Automatisch neu scannen, um ggf. wieder zu verbinden
         central.scanForPeripherals(
-            withServices: [obsServiceUUID],
+            withServices: serviceUUIDsForCurrentDevice,
             options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
         )
     }
 }
 
 // MARK: - CBPeripheralDelegate
-// Hier werden Services, Charakteristiken und Daten vom verbundenen OBS behandelt.
 
 extension BluetoothManager: CBPeripheralDelegate {
-    /// Services wurden entdeckt
+
     func peripheral(_ peripheral: CBPeripheral,
                     didDiscoverServices error: Error?) {
         if let error = error {
@@ -361,13 +377,38 @@ extension BluetoothManager: CBPeripheralDelegate {
         }
 
         guard let services = peripheral.services else { return }
-        // Nach dem OBS-Service filtern und passende Charakteristiken suchen
-        for service in services where service.uuid == obsServiceUUID {
-            peripheral.discoverCharacteristics([obsCharTxUUID], for: service)
+
+        for service in services {
+            switch service.uuid {
+            case obsLiteServiceUUID:
+                peripheral.discoverCharacteristics([obsLiteCharTxUUID], for: service)
+
+            case obsClassicServiceUUID:
+                peripheral.discoverCharacteristics(
+                    [
+                        obsClassicDistanceCharUUID,
+                        obsClassicButtonCharUUID,
+                        obsClassicOffsetCharUUID,
+                        obsClassicTrackIdCharUUID
+                    ],
+                    for: service
+                )
+
+            case batteryServiceUUID:
+                peripheral.discoverCharacteristics([batteryLevelCharUUID], for: service)
+
+            case deviceInfoServiceUUID:
+                peripheral.discoverCharacteristics(
+                    [firmwareRevisionCharUUID, manufacturerNameCharUUID],
+                    for: service
+                )
+
+            default:
+                break
+            }
         }
     }
 
-    /// Charakteristiken innerhalb eines Services wurden entdeckt
     func peripheral(_ peripheral: CBPeripheral,
                     didDiscoverCharacteristicsFor service: CBService,
                     error: Error?) {
@@ -379,14 +420,41 @@ extension BluetoothManager: CBPeripheralDelegate {
         }
 
         guard let characteristics = service.characteristics else { return }
-        for char in characteristics where char.uuid == obsCharTxUUID {
-            // Charakteristik merken und Notifications aktivieren
-            self.notifyCharacteristic = char
-            peripheral.setNotifyValue(true, for: char)
+
+        for char in characteristics {
+            switch char.uuid {
+            case obsLiteCharTxUUID:
+                peripheral.setNotifyValue(true, for: char)
+
+            case obsClassicDistanceCharUUID:
+                classicDistanceChar = char
+                peripheral.setNotifyValue(true, for: char)
+
+            case obsClassicButtonCharUUID:
+                classicButtonChar = char
+                peripheral.setNotifyValue(true, for: char)
+
+            case obsClassicOffsetCharUUID:
+                classicOffsetChar = char
+                peripheral.readValue(for: char)
+
+            case obsClassicTrackIdCharUUID:
+                classicTrackIdChar = char
+                peripheral.readValue(for: char)
+
+            case batteryLevelCharUUID:
+                peripheral.setNotifyValue(true, for: char)
+                peripheral.readValue(for: char)
+
+            case firmwareRevisionCharUUID:
+                peripheral.readValue(for: char)
+
+            default:
+                break
+            }
         }
     }
 
-    /// Notification-Status einer Charakteristik hat sich geändert
     func peripheral(_ peripheral: CBPeripheral,
                     didUpdateNotificationStateFor characteristic: CBCharacteristic,
                     error: Error?) {
@@ -397,7 +465,6 @@ extension BluetoothManager: CBPeripheralDelegate {
         }
     }
 
-    /// Neue Daten vom OBS über die TX-Charakteristik
     func peripheral(_ peripheral: CBPeripheral,
                     didUpdateValueFor characteristic: CBCharacteristic,
                     error: Error?) {
@@ -409,30 +476,57 @@ extension BluetoothManager: CBPeripheralDelegate {
             return
         }
 
-        // Nur unsere erwartete Charakteristik auswerten
-        guard characteristic.uuid == obsCharTxUUID,
-              let data = characteristic.value else { return }
+        guard let data = characteristic.value else { return }
 
-        // Debug-Ausgabe des rohen BLE-Frames im Hex-Format
-        print("BLE chunk (\(data.count) Bytes): \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
+        switch characteristic.uuid {
+        case obsLiteCharTxUUID:
+            handleLiteUpdate(data)
+
+        case obsClassicDistanceCharUUID:
+            handleClassicDistanceUpdate(data)
+
+        case obsClassicButtonCharUUID:
+            handleClassicButtonUpdate(data)
+
+        case obsClassicOffsetCharUUID:
+            handleClassicOffsetUpdate(data)
+
+        case obsClassicTrackIdCharUUID:
+            handleClassicTrackIdUpdate(data)
+
+        case batteryLevelCharUUID:
+            handleBatteryUpdate(data)
+
+        case firmwareRevisionCharUUID:
+            handleFirmwareUpdate(data)
+
+        default:
+            break
+        }
+    }
+
+    // MARK: - Lite Pfad (Protobuf → BIN)
+
+    private func handleLiteUpdate(_ data: Data) {
+        print("BLE Lite chunk (\(data.count) Bytes): \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
 
         do {
-            // Protobuf-Decode in ein Openbikesensor_Event
             let event = try Openbikesensor_Event(serializedData: data)
-            print("Protobuf decode OK")
+            print("Protobuf decode OK (Lite)")
 
-            // UI / Vorschau aktualisieren
+            // UI bekommt das Roh-Event (ohne Lenkerkorrektur),
+            // damit du dort „gemessen“ und „berechnet“ anzeigen kannst.
             DispatchQueue.main.async {
                 self.lastEvent = event
                 self.lastError = nil
                 self.updateDerivedState(from: event)
             }
 
-            // Event in BIN-Datei aufnehmen (ggf. mit zusätzlichem Zeitstempel)
+            // Für die BIN-Datei wird eine korrigierte Kopie geschrieben
             storeIncomingSensorEvent(event)
 
         } catch {
-            let msg = "Protobuf-Decode-Fehler: \(error.localizedDescription)"
+            let msg = "Protobuf-Decode-Fehler (Lite): \(error.localizedDescription)"
             DispatchQueue.main.async {
                 self.lastError = msg
             }
@@ -440,16 +534,148 @@ extension BluetoothManager: CBPeripheralDelegate {
         }
     }
 
+    // MARK: - Classic Pfad (8-Byte-Pakete → CSV)
+
+    private func parseClassicPacket(_ data: Data) -> (clockMs: UInt32, leftCm: UInt16, rightCm: UInt16)? {
+        guard data.count == 8 else { return nil }
+        let bytes = [UInt8](data)
+
+        let clock = UInt32(bytes[0])
+                 | (UInt32(bytes[1]) << 8)
+                 | (UInt32(bytes[2]) << 16)
+                 | (UInt32(bytes[3]) << 24)
+
+        let left = UInt16(bytes[4]) | (UInt16(bytes[5]) << 8)
+        let right = UInt16(bytes[6]) | (UInt16(bytes[7]) << 8)
+
+        return (clock, left, right)
+    }
+
+    private func handleClassicDistanceUpdate(_ data: Data) {
+        guard let packet = parseClassicPacket(data) else { return }
+
+        print("BLE Classic distance (\(data.count) Bytes) clock=\(packet.clockMs) left=\(packet.leftCm)cm right=\(packet.rightCm)cm")
+
+        // 0xFFFF = kein gültiger Wert
+        let leftMeters: Double?  = (packet.leftCm  == 0xFFFF) ? nil : Double(packet.leftCm)  / 100.0
+        let rightMeters: Double? = (packet.rightCm == 0xFFFF) ? nil : Double(packet.rightCm) / 100.0
+
+        // UI + Median-Logik wie bei Lite
+        if let dist = leftMeters {
+            var dm = Openbikesensor_DistanceMeasurement()
+            dm.sourceID = 1
+            dm.distance = Float(dist)
+
+            var event = Openbikesensor_Event()
+            event.distanceMeasurement = dm
+
+            DispatchQueue.main.async {
+                self.lastEvent = event
+                self.lastError = nil
+                self.updateDerivedState(from: event)
+            }
+
+            // Classic kann theoretisch auch als „Quelle“ für Lite dienen
+            if deviceType == .lite {
+                storeIncomingSensorEvent(event)
+            }
+        }
+
+        if let dist = rightMeters {
+            var dm = Openbikesensor_DistanceMeasurement()
+            dm.sourceID = 2
+            dm.distance = Float(dist)
+
+            var event = Openbikesensor_Event()
+            event.distanceMeasurement = dm
+
+            DispatchQueue.main.async {
+                self.lastEvent = event
+                self.lastError = nil
+                self.updateDerivedState(from: event)
+            }
+
+            if deviceType == .lite {
+                storeIncomingSensorEvent(event)
+            }
+        }
+
+        // CSV schreiben (Classic)
+        if deviceType == .classic, isRecording {
+            let left = (packet.leftCm  == 0xFFFF) ? nil : packet.leftCm
+            let right = (packet.rightCm == 0xFFFF) ? nil : packet.rightCm
+            classicCsvRecorder?.recordMeasurement(
+                leftCm: left,
+                rightCm: right,
+                confirmed: false,
+                location: lastLocation,
+                batteryVoltage: nil
+            )
+        }
+    }
+
+    private func handleClassicButtonUpdate(_ data: Data) {
+        guard let packet = parseClassicPacket(data) else { return }
+
+        print("BLE Classic button (\(data.count) Bytes) clock=\(packet.clockMs) left=\(packet.leftCm)cm right=\(packet.rightCm)cm")
+
+        // UI-Logik: Überholvorgang zählen + Median übernehmen
+        DispatchQueue.main.async {
+            self.handleUserInputPreview()
+        }
+
+        // CSV: Button-Messung als „confirmed“ schreiben
+        if deviceType == .classic, isRecording {
+            let left = (packet.leftCm  == 0xFFFF) ? nil : packet.leftCm
+            let right = (packet.rightCm == 0xFFFF) ? nil : packet.rightCm
+            classicCsvRecorder?.recordMeasurement(
+                leftCm: left,
+                rightCm: right,
+                confirmed: true,
+                location: lastLocation,
+                batteryVoltage: nil
+            )
+        }
+    }
+
+    private func handleClassicOffsetUpdate(_ data: Data) {
+        print("BLE Classic offset bytes: \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
+        // Optional: Könntest du hier auslesen und z. B. im UI anzeigen.
+    }
+
+    private func handleClassicTrackIdUpdate(_ data: Data) {
+        if let trackId = String(data: data, encoding: .utf8) {
+            print("BLE Classic trackId: \(trackId)")
+        } else {
+            print("BLE Classic trackId (nicht lesbar): \(data)")
+        }
+    }
+
+    // MARK: - Batterie / Firmware
+
+    private func handleBatteryUpdate(_ data: Data) {
+        guard let level = data.first else { return }
+        DispatchQueue.main.async {
+            self.batteryLevelPercent = Int(level)
+        }
+        print("Battery level: \(level)%")
+    }
+
+    private func handleFirmwareUpdate(_ data: Data) {
+        let fw = String(data: data, encoding: .utf8) ?? ""
+        DispatchQueue.main.async {
+            self.firmwareRevision = fw
+        }
+        print("Firmware revision: \(fw)")
+    }
+
     // MARK: - UI / Preview-Logik
 
-    /// Erzeugt abgeleitete UI-Zustände (Texte, Vorschauwerte) aus einem OBS-Event.
     fileprivate func updateDerivedState(from event: Openbikesensor_Event) {
-        // Anzeige / Preview je nach Event-Typ
         switch event.content {
         case .distanceMeasurement(let dm)?:
             let d = Double(dm.distance)
 
-            // Nur sinnvolle Messwerte anzeigen (zwischen 0 und 5 m)
             if d > 0, d < 5 {
                 lastDistanceText = String(
                     format: "%.2f m (Sensor %d)",
@@ -461,22 +687,18 @@ extension BluetoothManager: CBPeripheralDelegate {
             }
 
         case .textMessage(let msg)?:
-            // Freitextnachricht vom Sensor
             lastMessageText = msg.text
 
         case .userInput(let ui)?:
-            // Button-/User-Eingabe vom Sensor
             lastMessageText = "UserInput: \(ui.type)"
 
         case .geolocation?, .metadata?, .batteryStatus?:
-            // Diese Typen werden für die Preview hier nicht explizit verwendet
             break
 
         case nil:
             break
         }
 
-        // Erweiterte Vorschau-Logik (Abstände, Überholabstand)
         switch event.content {
         case .distanceMeasurement(let dm)?:
             handleDistancePreview(dm)
@@ -489,22 +711,19 @@ extension BluetoothManager: CBPeripheralDelegate {
         }
     }
 
-    /// Aktualisiert die linke/rechte Distanz-Vorschau und speichert Korrekturwerte.
     private func handleDistancePreview(_ dm: Openbikesensor_DistanceMeasurement) {
+        // dm.distance ist hier der ROHwert (vom Sensor),
+        // weil wir im UI das ursprüngliche Event verwenden (nicht die korrigierte Kopie für die BIN).
         let rawMeters = Double(dm.distance)
         let rawCm = Int((rawMeters * 100.0).rounded())
 
-        // Nur Werte im Bereich 0–5 m verwenden
         guard rawMeters > 0.0, rawMeters < 5.0 else {
-            // 99m/Timeout nicht in der Preview verwenden
             return
         }
 
-        // Lenkerbreite abziehen, um den Abstand zum überholenden Fahrzeug zu erhalten
         let handlebarHalf = Double(handlebarWidthCm) / 2.0
         let correctedCm = max(0, Int((Double(rawCm) - handlebarHalf).rounded()))
 
-        // Für den Median nur die Messungen des linken Sensors (ID 1) verwenden
         if dm.sourceID == 1 {
             movingMedian.add(correctedCm)
         }
@@ -512,27 +731,21 @@ extension BluetoothManager: CBPeripheralDelegate {
         let infoText = "Gemessen: \(rawCm) cm  |  berechnet: \(correctedCm) cm"
 
         if dm.sourceID == 1 {
-            // Links
             leftRawCm = rawCm
             leftCorrectedCm = correctedCm
             leftDistanceText = "Links (ID 1): \(infoText)"
         } else {
-            // Rechts
             rightRawCm = rawCm
             rightCorrectedCm = correctedCm
             rightDistanceText = "Rechts (ID \(dm.sourceID)): \(infoText)"
         }
     }
 
-    /// Wird bei einem UserInput-Event aufgerufen (z.B. Buttondruck am OBS).
-    /// Nutzt den aktuellen Median, um den Überholabstand festzuhalten.
     private func handleUserInputPreview() {
-        // Jeder UserInput während der Aufnahme = ein Überholvorgang
         if isRecording {
             currentOvertakeCount += 1
         }
 
-        // Wenn noch kein stabiler Median vorhanden ist, kann kein sinnvoller Überholabstand berechnet werden
         guard let median = movingMedian.currentMedian else {
             overtakeDistanceText = "Überholabstand: Noch keine Messung."
             lastMedianAtPressCm = nil
@@ -540,23 +753,37 @@ extension BluetoothManager: CBPeripheralDelegate {
             return
         }
 
-        // Median am Zeitpunkt des Tastendrucks übernehmen
         lastMedianAtPressCm = median
         overtakeDistanceCm = median
         overtakeDistanceText = "Überholabstand: \(median) cm"
     }
 
-    // MARK: - BIN Schreiblogik
+    // MARK: - BIN Schreiblogik (nur für Lite)
 
-    /// Nimmt ein vom Sensor empfangenes Event und versieht es mit einem zusätzlichen Zeitstempel,
-    /// bevor es in die BIN-Datei geschrieben wird.
+    /// Nimmt ein eingehendes Event und schreibt eine **korrigierte Kopie**
+    /// in die BIN-Datei:
+    /// - distanceMeasurement.distance wird um die halbe Lenkerbreite reduziert
+    /// - Zeitstempel (Unix) wird angehängt
     private func storeIncomingSensorEvent(_ event: Openbikesensor_Event) {
-        // Nur während einer laufenden Aufnahme speichern
-        guard isRecording else { return }
+        guard isRecording, deviceType == .lite else { return }
 
-        var e = event
+        var eForFile = event
 
-        // Aktuelle Zeit als OBS-Time an das Event anhängen
+        // Lenkerbreite auf alle DistanceMeasurements anwenden,
+        // damit das Portal später im Zeitfenster um den Knopfdruck herum
+        // bereits korrigierte Abstände sieht.
+        if case .distanceMeasurement(var dm) = eForFile.content {
+            let rawMeters = Double(dm.distance)
+            if rawMeters > 0.0 {
+                let handlebarHalfCm = Double(handlebarWidthCm) / 2.0
+                let handlebarHalfMeters = handlebarHalfCm / 100.0
+                let correctedMeters = max(0.0, rawMeters - handlebarHalfMeters)
+                dm.distance = Float(correctedMeters)
+                eForFile.distanceMeasurement = dm
+            }
+        }
+
+        // Zeit-Event anhängen (Unix-Zeit)
         var t = Openbikesensor_Time()
         let now = Date().timeIntervalSince1970
         let sec = Int64(now)
@@ -566,26 +793,20 @@ extension BluetoothManager: CBPeripheralDelegate {
         t.nanoseconds = nanos
         t.reference = .unix
 
-        e.time.append(t)
+        eForFile.time.append(t)
 
-        storeEventToBin(e)
+        storeEventToBin(eForFile)
     }
 
-    /// Serialisiert ein Event, verpackt es per COBS und schreibt es in die BIN-Datei.
     private func storeEventToBin(_ event: Openbikesensor_Event) {
-        // Nur während einer laufenden Aufnahme speichern
-        guard isRecording else { return }
+        guard isRecording, deviceType == .lite else { return }
 
         do {
-            // Protobuf serialisieren
             let raw = try event.serializedData()
-            // Frame mit COBS kodieren (für robuste, 0-terminierte Frames)
             let cobs = COBS.encode(raw)
             var frame = Data()
             frame.append(cobs)
-            frame.append(0x00) // Frame-Delimiter (0x00 trennt die Frames)
-
-            // Binärdaten in Datei schreiben
+            frame.append(0x00)
             binWriter.write(frame)
         } catch {
             print("storeEventToBin: \(error)")
@@ -594,69 +815,53 @@ extension BluetoothManager: CBPeripheralDelegate {
 }
 
 // MARK: - CLLocationManagerDelegate
-// Reagiert auf Änderungen der Standortberechtigung.
 
 extension BluetoothManager: CLLocationManagerDelegate {
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         updateLocationAuthorizationStatus()
     }
 
-    // iOS < 14
     func locationManager(_ manager: CLLocationManager,
                          didChangeAuthorization status: CLAuthorizationStatus) {
         updateLocationAuthorizationStatus()
     }
 }
 
-// MARK: - MovingMedian (vereinfachte Swift-Version)
+// MARK: - MovingMedian
 
-/// Einfacher gleitender Median über die letzten N Werte.
-/// Wird verwendet, um Überholabstände zu glätten und Ausreißer zu reduzieren.
 private struct MovingMedian {
-    /// Anzahl Werte in einem Fenster (z.B. 3)
     let windowSize: Int
-    /// Maximale Anzahl an Werten, die insgesamt gespeichert werden
     let maxSamples: Int
-
-    /// Bisher aufgezeichnete Werte (FIFO-Logik in `add`)
     private var values: [Int] = []
 
     init(windowSize: Int, maxSamples: Int) {
-        // windowSize und maxSamples absichern
         self.windowSize = max(1, windowSize)
         self.maxSamples = max(windowSize, maxSamples)
     }
 
-    /// Fügt einen neuen Wert hinzu und schneidet ggf. die Historie ab.
     mutating func add(_ value: Int) {
         var v = values
         v.append(value)
-        // Wenn zu viele Werte gespeichert sind, die ältesten abschneiden
         if v.count > maxSamples {
             v.removeFirst(v.count - maxSamples)
         }
         values = v
     }
 
-    /// Ist genügend Historie vorhanden, um einen Median zu berechnen?
     var hasMedian: Bool {
         values.count >= windowSize
     }
 
-    /// Aktueller Median über die letzten `windowSize` Werte (falls vorhanden).
     var currentMedian: Int? {
         guard hasMedian else { return nil }
-        // Nur die letzten `windowSize` Werte verwenden
         let slice = values.suffix(windowSize)
         let sorted = slice.sorted()
         let count = sorted.count
         let mid = count / 2
 
-        // Bei ungerader Anzahl: mittleres Element
         if count % 2 == 1 {
             return sorted[mid]
         } else {
-            // Bei gerader Anzahl: Mittelwert der beiden mittleren Elemente
             let m = Double(sorted[mid - 1] + sorted[mid]) / 2.0
             return Int(m.rounded())
         }

@@ -1,5 +1,3 @@
-// ContentView.swift
-
 import SwiftUI
 import UIKit
 
@@ -29,6 +27,9 @@ struct ContentView: View {
                 ScrollView(.vertical) {
                     VStack(spacing: 24) {
                         LogoView()
+
+                        // NEU: Gerätetyp-Auswahl
+                        DeviceTypeSelectionCard()
 
                         ConnectionStatusCard()
 
@@ -140,6 +141,33 @@ struct LogoView: View {
             .scaledToFit()
             .frame(width: 64, height: 64)
             .frame(maxWidth: .infinity, alignment: .center)
+    }
+}
+
+// MARK: - Device Type Selection
+
+/// Karte, mit der der Nutzer zwischen OBS Lite und OBS Classic wählen kann.
+struct DeviceTypeSelectionCard: View {
+    @EnvironmentObject var bt: BluetoothManager
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Gerätetyp")
+                .font(.obsSectionTitle)
+
+            Picker("Gerätetyp", selection: $bt.deviceType) {
+                ForEach(ObsDeviceType.allCases) { type in
+                    Text(type.displayName).tag(type)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            Text(bt.deviceType.description)
+                .font(.obsFootnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .obsCardStyle()
     }
 }
 
