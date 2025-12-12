@@ -42,7 +42,7 @@ struct PortalHomeView: View {
                     Image(systemName: "folder")
                         .font(.title3)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Aufgezeichnete Fahrten & Upload")
+                        Text("Fahrten & Upload")
                             .font(.obsSectionTitle)
                         Text("Aufgezeichnete Fahrten verwalten und ins Portal hochladen.")
                             .font(.obsFootnote)
@@ -63,7 +63,7 @@ struct PortalHomeView: View {
                     Image(systemName: "list.bullet.rectangle")
                         .font(.title3)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Meine Portal-Tracks")
+                        Text("Fahrtaufzeichnungen im Portal")
                             .font(.obsSectionTitle)
                         Text("Meine Fahrten ansehen, die im OBS-Portal gespeichert sind.")
                             .font(.obsFootnote)

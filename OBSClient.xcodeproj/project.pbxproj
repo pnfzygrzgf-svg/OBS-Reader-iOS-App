@@ -285,7 +285,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = OBSClient/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "OBS Lite Recorder";
+				INFOPLIST_KEY_CFBundleDisplayName = "OBS Recorder";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Sensorwerte werden für die OpenBikeSensor-Aufzeichnung im Hintergrund gespeichert.";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = huch;
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Diese App zeichnet deine Position auch im Hintergrund auf, um Routen und Sensordaten während der gesamten Fahrt speichern zu können.";
@@ -325,7 +325,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = OBSClient/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "OBS Lite Recorder";
+				INFOPLIST_KEY_CFBundleDisplayName = "OBS Recorder";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Sensorwerte werden für die OpenBikeSensor-Aufzeichnung im Hintergrund gespeichert.";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = huch;
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Diese App zeichnet deine Position auch im Hintergrund auf, um Routen und Sensordaten während der gesamten Fahrt speichern zu können.";

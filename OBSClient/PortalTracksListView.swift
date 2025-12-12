@@ -24,7 +24,7 @@ struct PortalTracksListView: View {
             }
             .scrollIndicators(.hidden)
         }
-        .navigationTitle("Meine Portal-Tracks")
+        .navigationTitle("Meine Aufzeichnungen")
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Login") {

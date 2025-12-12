@@ -48,13 +48,13 @@ struct InfoView: View {
                 .font(.obsScreenTitle)
 
             Text("""
-Diese App zeichnet deine Fahrten und Überholabstände mit einem OpenBikeSensor Lite auf.
+Diese App zeichnet deine Fahrten und Überholabstände mit einem OpenBikeSensor auf.
 Sie hilft dabei, kritische Überholmanöver sichtbar zu machen und die Daten auszuwerten.
 """)
 
             // Externer Link zur Dokumentation des OpenBikeSensor Lite
-            Link("Mehr zum OpenBikeSensor Lite",
-                 destination: URL(string: "https://www.openbikesensor.org/docs/lite/")!)
+            Link("Mehr zum OpenBikeSensor",
+                 destination: URL(string: "https://www.openbikesensor.org/device/")!)
                 .font(.obsFootnote.weight(.semibold))
         }
         // Einheitlicher Card-Look (vermutlich: Hintergrund, CornerRadius, Shadow, etc.)

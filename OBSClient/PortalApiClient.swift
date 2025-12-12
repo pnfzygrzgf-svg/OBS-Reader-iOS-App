@@ -200,8 +200,11 @@ final class PortalApiClient {
             throw PortalApiError.invalidBaseUrl
         }
 
-        let basePath = components.path.hasSuffix("/") ? String(components.path.dropLast()) : components.path
-        components.path = basePath + path
+        // WICHTIG:
+        // Pfadanteile, die der/die Nutzer:in evtl. eingegeben hat (/api etc.),
+        // werden ignoriert. Wir benutzen nur Scheme + Host und hängen
+        // dann unseren eigenen Path an.
+        components.path = path
         components.queryItems = queryItems
 
         guard let url = components.url else {
@@ -220,9 +223,24 @@ final class PortalApiClient {
             throw PortalApiError.noHTTPResponse
         }
 
+        // Debug-Logging, damit du siehst, was wirklich zurückkommt
+        print("📡 [PortalApiClient] Request:", url.absoluteString)
+        print("📡 Status:", http.statusCode)
+        print("📡 Body:", String(data: data, encoding: .utf8) ?? "<non-UTF8 / empty>")
+
         guard (200...299).contains(http.statusCode) else {
             let body = String(data: data, encoding: .utf8) ?? ""
             throw PortalApiError.httpError(status: http.statusCode, body: body)
+        }
+
+        // Falls ein Endpunkt wirklich mal einen leeren Body mit 2xx zurückgibt:
+        if data.isEmpty {
+            if T.self == PortalTrackListResponse.self {
+                let empty = PortalTrackListResponse(trackCount: 0, tracks: [])
+                return empty as! T
+            }
+            // Für andere Typen wäre ein leerer Body unerwartet:
+            throw PortalApiError.httpError(status: http.statusCode, body: "Leerer Response-Body bei erwarteten Daten.")
         }
 
         let decoder = JSONDecoder()

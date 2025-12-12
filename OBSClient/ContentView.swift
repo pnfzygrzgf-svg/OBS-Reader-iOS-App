@@ -68,7 +68,7 @@ struct ContentView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .navigationTitle("OBS Lite Recorder")
+            .navigationTitle("OBS Recorder")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
@@ -301,7 +301,7 @@ Aktiviere sie in den iOS-Einstellungen unter „Datenschutz & Sicherheit > Ortun
 Damit deine Fahrten auch bei ausgeschaltetem Bildschirm und im Hintergrund aufgezeichnet werden können, braucht diese App „Immer“ Zugriff auf deinen Standort.
 
 Tippe unten auf „Einstellungen öffnen“ und stelle unter
-„Ortungsdienste > OBS Lite Recorder > Zugriff auf Standort“
+„Ortungsdienste > OBS Recorder > Zugriff auf Standort“
 die Option auf „Immer“.
 """
     }
