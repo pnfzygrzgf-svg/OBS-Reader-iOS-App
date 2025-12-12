@@ -1,7 +1,7 @@
 # OBS Recorder für iOS
 
 OBS  Recorder für iOS ist eine App zum Aufzeichnen von Fahrten mit einem **[OpenBikeSensor Classic](https://www.openbikesensor.org/docs/classic/)** oder einem **[OpenBikeSensor Lite](https://www.openbikesensor.org/docs/lite/)** und zum Hochladen dieser in ein
-OpenBikeSensor-Portal.
+OpenBikeSensor-Portal. Die aufgezeichneten Fahrten können ebenfalls direkt auf dem Gerät auf einer Karte dargestellt werden.
 
 Code, der in dieser App verwendet wird, stammt von https://github.com/openbikesensor.
 
