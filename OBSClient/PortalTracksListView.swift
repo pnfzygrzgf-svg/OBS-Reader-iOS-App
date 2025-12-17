@@ -17,7 +17,7 @@ struct PortalTracksListView: View {
             ScrollView {
                 VStack(spacing: 24) {
 
-                    // ✅ Untertitel-Header im Content (ohne extra Titel)
+                    // Untertitel-Header im Content (ohne extra Titel)
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Im Portal gespeicherte Fahrten ansehen. Sortiert nach Fahrtdatum (neueste zuerst).")
                             .font(.obsFootnote)

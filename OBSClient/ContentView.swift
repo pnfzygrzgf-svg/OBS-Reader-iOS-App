@@ -12,7 +12,7 @@ struct ContentView: View {
 
     /// Steuert, ob nach dem Stoppen der Aufnahme kurz ein Toast angezeigt wird
     @State private var showSaveConfirmation = false
-    
+
     /// Steuert, ob die Distanz links/rechts in der Messkarten-Ansicht angezeigt wird
     @State private var showSideDistances = false   // steuert Anzeige von Abstand links/rechts
 
@@ -174,6 +174,7 @@ struct DeviceTypeSelectionCard: View {
 // MARK: - Connection Status (BLE)
 
 /// Karte, die den Bluetooth-Verbindungsstatus zum OBS anzeigt.
+/// (Erweitert: zeigt Name/LocalName/Detected/Quelle/Firmware/Hersteller/ID)
 struct ConnectionStatusCard: View {
     @EnvironmentObject var bt: BluetoothManager
 
@@ -191,6 +192,7 @@ struct ConnectionStatusCard: View {
                 Text(subtitle)
                     .font(.obsFootnote)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer()
@@ -212,10 +214,20 @@ struct ConnectionStatusCard: View {
         return "Nicht verbunden"
     }
 
-    /// Untertitel mit konkreter Handlungsempfehlung
+    /// Untertitel
     private var subtitle: String {
         if bt.isConnected {
-            return "Das Gerät sendet Messwerte."
+            let detected = bt.detectedDeviceType?.displayName ?? "unbekannt"
+            let mfg = (bt.manufacturerName?.isEmpty == false) ? bt.manufacturerName! : "-"
+            let fw = (bt.firmwareRevision?.isEmpty == false) ? bt.firmwareRevision! : "-"
+
+            return """
+            Name: \(bt.connectedName)
+            LocalName: \(bt.connectedLocalName)
+            Detected: \(detected) · Quelle: \(bt.lastBleSource)
+            Hersteller: \(mfg) · Firmware: \(fw)
+            ID: \(bt.connectedId)
+            """
         }
         if !bt.isPoweredOn {
             return "Aktiviere Bluetooth, um den Sensor zu verbinden."
