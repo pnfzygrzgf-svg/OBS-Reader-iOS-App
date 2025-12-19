@@ -1,6 +1,5 @@
 // PortalApiClient.swift
 
-
 import Foundation
 import CoreLocation
 
@@ -73,7 +72,78 @@ struct PortalTrackSummary: Identifiable, Decodable {
         case numValid
         case numMeasurements
         case author
-        case isPublic = "public"  // JSON-Feld "public" → Swift-Property "isPublic"
+        case isPublic = "public"
+    }
+
+    // ✅ Tolerantes Decoding: fehlende / null Felder führen nicht zum kompletten Decode-Fehler
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+
+        // Pflichtfelder
+        id = try c.decode(Int.self, forKey: .id)
+        slug = try c.decode(String.self, forKey: .slug)
+
+        // Optional
+        title = try c.decodeIfPresent(String.self, forKey: .title)
+        description = try c.decodeIfPresent(String.self, forKey: .description)
+
+        // Strings: tolerant
+        createdAt = (try? c.decode(String.self, forKey: .createdAt)) ?? ""
+        updatedAt = (try? c.decode(String.self, forKey: .updatedAt)) ?? ""
+        processingStatus = (try? c.decode(String.self, forKey: .processingStatus)) ?? ""
+
+        recordedAt = (try? c.decode(String.self, forKey: .recordedAt)) ?? ""
+        recordedUntil = (try? c.decode(String.self, forKey: .recordedUntil)) ?? ""
+
+        // Bools / Numbers: tolerant
+        isPublic = (try? c.decode(Bool.self, forKey: .isPublic)) ?? false
+
+        duration = (try? c.decode(Double.self, forKey: .duration)) ?? 0
+        length = (try? c.decode(Double.self, forKey: .length)) ?? 0
+
+        numEvents = (try? c.decode(Int.self, forKey: .numEvents)) ?? 0
+        numValid = (try? c.decode(Int.self, forKey: .numValid)) ?? 0
+        numMeasurements = (try? c.decode(Int.self, forKey: .numMeasurements)) ?? 0
+
+        author = (try? c.decode(PortalAuthor.self, forKey: .author))
+            ?? PortalAuthor(id: 0, displayName: "(unbekannt)", bio: nil, image: nil)
+    }
+
+    // ✅ Memberwise-Init für Preview/Tests
+    init(
+        id: Int,
+        slug: String,
+        title: String?,
+        description: String?,
+        createdAt: String,
+        updatedAt: String,
+        isPublic: Bool,
+        processingStatus: String,
+        recordedAt: String,
+        recordedUntil: String,
+        duration: Double,
+        length: Double,
+        numEvents: Int,
+        numValid: Int,
+        numMeasurements: Int,
+        author: PortalAuthor
+    ) {
+        self.id = id
+        self.slug = slug
+        self.title = title
+        self.description = description
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.isPublic = isPublic
+        self.processingStatus = processingStatus
+        self.recordedAt = recordedAt
+        self.recordedUntil = recordedUntil
+        self.duration = duration
+        self.length = length
+        self.numEvents = numEvents
+        self.numValid = numValid
+        self.numMeasurements = numMeasurements
+        self.author = author
     }
 }
 
@@ -81,6 +151,37 @@ struct PortalTrackSummary: Identifiable, Decodable {
 struct PortalTrackListResponse: Decodable {
     let trackCount: Int
     let tracks: [PortalTrackSummary]
+
+    /// ✅ Anzahl Tracks, die beim Decoding übersprungen wurden (kaputt/unvollständig)
+    let skippedTracksCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case trackCount
+        case tracks
+    }
+
+    // ⚠️ Wichtig: weil wir gleich einen custom init(from:) haben,
+    // brauchen wir diesen Initializer für deinen "empty response" Fall in performRequest()
+    init(trackCount: Int, tracks: [PortalTrackSummary], skippedTracksCount: Int = 0) {
+        self.trackCount = trackCount
+        self.tracks = tracks
+        self.skippedTracksCount = skippedTracksCount
+    }
+
+    // ✅ Lossy: wenn 1 Track kaputt ist, wird er übersprungen, der Rest bleibt sichtbar
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+
+        trackCount = (try? c.decode(Int.self, forKey: .trackCount)) ?? 0
+
+        if let lossy = try? c.decode(LossyArray<PortalTrackSummary>.self, forKey: .tracks) {
+            tracks = lossy.elements
+            skippedTracksCount = lossy.skippedCount
+        } else {
+            tracks = []
+            skippedTracksCount = 0
+        }
+    }
 }
 
 /// Detail-Endpoint liefert oft { track: { ... } }
@@ -183,38 +284,14 @@ enum PortalApiError: Error {
 // MARK: - API-Client (nur “My Tracks”)
 // =====================================================
 
-/// API-Client fürs OBS-Portal – fokussiert auf **eigene Tracks**.
-///
-/// Unterstützte Endpunkte:
-/// - fetchMyTracks:      GET /api/tracks/feed
-/// - fetchTrackDetail:   GET /api/tracks/<slug>
-/// - fetchTrackData:     GET /api/tracks/<slug>/data
-///
-/// Nicht enthalten:
-/// - Öffentliche Tracks (GET /api/tracks), da du diese nicht benötigst.
 final class PortalApiClient {
 
-    /// Basis-URL des Portals, z.B. "https://portal.openbikesensor.org"
-    /// Erwartung: Scheme + Host (+ optional Port). Pfad wird in buildURL überschrieben.
     private let baseUrl: String
 
     init(baseUrl: String) {
         self.baseUrl = baseUrl
     }
 
-    // -------------------------------------------------
-    // MARK: Eigene Tracks (Feed)
-    // -------------------------------------------------
-
-    /// Lädt nur die Tracks des eingeloggten Users aus GET /api/tracks/feed.
-    ///
-    /// - Parameters:
-    ///   - limit:  Anzahl Einträge pro “Seite”
-    ///   - offset: Startindex für Pagination (0, 20, 40, ...)
-    ///
-    /// Wichtig:
-    /// - Parameter `reversed` muss als String "false" gesendet werden,
-    ///   sonst wirft das Backend (laut Erfahrung) einen Fehler.
     func fetchMyTracks(limit: Int = 20, offset: Int = 0) async throws -> PortalTrackListResponse {
         let url = try buildURL(
             path: "/api/tracks/feed",
@@ -227,19 +304,11 @@ final class PortalApiClient {
         return try await performRequest(url: url, decodeAs: PortalTrackListResponse.self)
     }
 
-    // -------------------------------------------------
-    // MARK: Track-Details
-    // -------------------------------------------------
-
     /// Lädt Detailinfos zu einem Track aus GET /api/tracks/<slug>
     func fetchTrackDetail(slug: String) async throws -> PortalTrackDetailResponse {
         let url = try buildURL(path: "/api/tracks/\(slug)", queryItems: nil)
         return try await performRequest(url: url, decodeAs: PortalTrackDetailResponse.self)
     }
-
-    // -------------------------------------------------
-    // MARK: Track-Daten für Karte
-    // -------------------------------------------------
 
     /// Lädt verarbeitete Track-Daten (Route + Events) aus GET /api/tracks/<slug>/data
     func fetchTrackData(slug: String) async throws -> PortalTrackData {
@@ -247,21 +316,11 @@ final class PortalApiClient {
         return try await performRequest(url: url, decodeAs: PortalTrackData.self)
     }
 
-    // =====================================================
-    // MARK: - Hilfsfunktionen intern
-    // =====================================================
-
-    /// Baut eine URL aus baseUrl + path + queryItems.
-    ///
-    /// Designentscheidung:
-    /// - Falls baseUrl bereits einen Pfad enthält (z.B. "/api"),
-    ///   wird dieser überschrieben, damit wir nicht “/api/api/...” erzeugen.
     private func buildURL(path: String, queryItems: [URLQueryItem]?) throws -> URL {
         guard var components = URLComponents(string: baseUrl) else {
             throw PortalApiError.invalidBaseUrl
         }
 
-        // Pfad bewusst überschreiben
         components.path = path
         components.queryItems = queryItems
 
@@ -271,29 +330,24 @@ final class PortalApiClient {
         return url
     }
 
-    /// Führt einen GET-Request aus, prüft Statuscode und decoded JSON als T.
     private func performRequest<T: Decodable>(url: URL, decodeAs type: T.Type) async throws -> T {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
 
-        // Request ausführen (async)
         let (data, response) = try await URLSession.shared.data(for: request)
 
-        // HTTP Response validieren
         guard let http = response as? HTTPURLResponse else {
             throw PortalApiError.noHTTPResponse
         }
 
-        // Fehlerstatuscodes inkl. Body weiterreichen
         guard (200...299).contains(http.statusCode) else {
             let body = String(data: data, encoding: .utf8) ?? ""
             throw PortalApiError.httpError(status: http.statusCode, body: body)
         }
 
-        // Leerer Body ist selten – beim Feed können wir dann “leer” zurückgeben.
         if data.isEmpty {
             if T.self == PortalTrackListResponse.self {
-                let empty = PortalTrackListResponse(trackCount: 0, tracks: [])
+                let empty = PortalTrackListResponse(trackCount: 0, tracks: [], skippedTracksCount: 0)
                 return empty as! T
             }
             throw PortalApiError.httpError(
@@ -302,7 +356,6 @@ final class PortalApiClient {
             )
         }
 
-        // JSON decode
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .useDefaultKeys
         return try decoder.decode(T.self, from: data)
