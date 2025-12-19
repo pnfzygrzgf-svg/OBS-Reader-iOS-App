@@ -1,25 +1,49 @@
 import SwiftUI
 import CoreLocation
 
+/// Detailansicht für einen Portal-Track.
+/// Zeigt:
+/// - Kopfkarte (Titel, Autor, Kennzahlen)
+/// - Karte mit Route + Event-Markern (OvertakeEvents)
+/// - Einklappbare Detail-Liste (DisclosureGroup)
 struct PortalTrackDetailView: View {
+
+    // Basis-URL des Portals (wird für API-Calls genutzt)
     let baseUrl: String
+
+    // Track, der beim Öffnen der View bereits bekannt ist (z.B. aus einer Liste)
     let initialTrack: PortalTrackSummary
 
+    // Aktueller Track-Zustand in der View:
+    // wird zuerst mit initialTrack befüllt und nach dem Nachladen durch Detaildaten ersetzt
     @State private var track: PortalTrackSummary
+
+    // Lade-/Fehlerzustand für Detaildaten
     @State private var isLoading = false
     @State private var errorMessage: String?
 
-    // Für die Karte
+    // MARK: - Karte / Map State
+
+    // Route als Liste von Koordinaten (Polyline)
     @State private var mapRoute: [CLLocationCoordinate2D] = []
+
+    // Events (z.B. Überholvorgänge) als Marker/Annotationen
     @State private var mapEvents: [OvertakeEvent] = []
+
+    // Ladezustand speziell für Map-Daten (Route + Events)
     @State private var isLoadingMap = false
 
-    // Details ein-/ausklappbar – standardmäßig EINGEklappt (zu)
+    // MARK: - UI State
+
+    // Details ein-/ausklappbar – standardmäßig eingeklappt (false)
     @State private var showDetails = false
 
-    // NEW: Fullscreen-State für die Karte
+    // Fullscreen-State für die Karte (öffnet PortalTrackMapView in fullScreenCover)
     @State private var showFullscreenMap = false
 
+    /// Custom init, weil `track` als @State initialisiert werden muss.
+    /// - `initialTrack` bleibt unverändert als Referenz für slug/Startdaten
+    /// - `track` ist der veränderliche State für die UI
     init(baseUrl: String, track: PortalTrackSummary) {
         self.baseUrl = baseUrl
         self.initialTrack = track
@@ -28,14 +52,16 @@ struct PortalTrackDetailView: View {
 
     var body: some View {
         ZStack {
+            // Hintergrund ähnlich iOS "Grouped" Screens
             Color(.systemGroupedBackground)
                 .ignoresSafeArea()
 
+            // Scrollbarer Inhalt: drei Karten untereinander
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    headerCard
-                    mapCard
-                    detailsCard
+                    headerCard   // Titel/Autor/Kennzahlen
+                    mapCard      // Karte + Ladezustand + Fullscreen
+                    detailsCard  // DisclosureGroup mit Details
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 16)
@@ -45,10 +71,18 @@ struct PortalTrackDetailView: View {
         }
         .navigationTitle("Track-Details")
         .navigationBarTitleDisplayMode(.inline)
+
+        // Task wird beim Erscheinen der View ausgeführt:
+        // 1) Detaildaten (Meta-Infos etc.)
+        // 2) Track-Daten für die Karte (Route + Events)
         .task {
             await loadDetail()
             await loadTrackData()
         }
+
+        // Fehleranzeige als Alert:
+        // - isPresented wird dynamisch aus errorMessage != nil abgeleitet
+        // - beim Schließen wird errorMessage wieder auf nil gesetzt
         .alert(
             "Fehler",
             isPresented: Binding(
@@ -62,12 +96,17 @@ struct PortalTrackDetailView: View {
         } message: {
             Text(errorMessage ?? "")
         }
-        // Fullscreen-Karte
+
+        // Fullscreen-Karte:
+        // - wird geöffnet, wenn showFullscreenMap true wird
+        // - Schließen über X-Button
         .fullScreenCover(isPresented: $showFullscreenMap) {
             ZStack(alignment: .topTrailing) {
+                // MapView füllt den ganzen Bildschirm
                 PortalTrackMapView(route: mapRoute, events: mapEvents)
                     .ignoresSafeArea()
 
+                // Schließen-Button oben rechts
                 Button {
                     showFullscreenMap = false
                 } label: {
@@ -84,14 +123,17 @@ struct PortalTrackDetailView: View {
 
     // MARK: - Cards
 
-    /// Kopfkarte mit Titel, Autor und ein paar Kennzahlen
+    /// Kopfkarte mit Titel, Autor und ein paar Kennzahlen (Länge, Dauer, Events)
     private var headerCard: some View {
         VStack(alignment: .leading, spacing: 8) {
+
+            // Titel: optional → Fallback auf "(ohne Titel)"
             Text(track.title?.isEmpty == false ? track.title! : "(ohne Titel)")
                 .font(.obsScreenTitle)
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)
 
+            // Autor-Zeile mit Icon
             HStack(spacing: 8) {
                 Image(systemName: "person")
                     .foregroundStyle(.secondary)
@@ -102,13 +144,15 @@ struct PortalTrackDetailView: View {
                     .foregroundStyle(.secondary)
             }
 
-            // Aufzeichnungszeitraum – Strings sind nicht optional, also direkt verwenden
+            // Aufzeichnungszeitraum nur anzeigen, wenn mindestens ein Wert gesetzt ist
+            // (recordedAt/recordedUntil sind Strings – nicht optional)
             if !track.recordedAt.isEmpty || !track.recordedUntil.isEmpty {
                 Text("Aufzeichnung: \(track.recordedAt) – \(track.recordedUntil)")
                     .font(.obsFootnote)
                     .foregroundStyle(.secondary)
             }
 
+            // Kennzahlen-Zeile (monospacedDigit für „ruhigere“ Zahlenanzeige)
             HStack(spacing: 12) {
                 Text(String(format: "Länge: %.2f km", track.length / 1000.0))
                 Text("Dauer: \(formattedDuration(track.duration))")
@@ -122,24 +166,28 @@ struct PortalTrackDetailView: View {
         .obsCardStyle()
     }
 
-    /// Karte mit der PortalTrackMapView bzw. Ladezustand
+    /// Karte mit PortalTrackMapView bzw. Lade-/Fallback-UI
     private var mapCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Karte")
                 .font(.obsSectionTitle)
 
+            // Wenn bereits Route vorhanden ist → Karte anzeigen
             if !mapRoute.isEmpty {
                 ZStack(alignment: .topTrailing) {
+
+                    // Karte in normaler Größe
                     PortalTrackMapView(route: mapRoute, events: mapEvents)
                         .frame(height: 300)
                         .cornerRadius(12)
                         .clipped()
-                        // Optional: Karte selbst tappbar für Fullscreen
+
+                        // Optional: Tap auf Karte öffnet Fullscreen
                         .onTapGesture {
                             showFullscreenMap = true
                         }
 
-                    // Button zum Fullscreen-Öffnen
+                    // Separater Button zum Fullscreen-Öffnen
                     Button {
                         showFullscreenMap = true
                     } label: {
@@ -150,6 +198,8 @@ struct PortalTrackDetailView: View {
                     }
                     .padding(8)
                 }
+
+            // Wenn Map-Daten gerade geladen werden → Progress + Text
             } else if isLoadingMap {
                 HStack(spacing: 8) {
                     ProgressView()
@@ -157,6 +207,8 @@ struct PortalTrackDetailView: View {
                         .font(.obsFootnote)
                         .foregroundStyle(.secondary)
                 }
+
+            // Sonst: Button zum manuellen Nachladen der Karte
             } else {
                 Button {
                     Task { await loadTrackData() }
@@ -172,14 +224,18 @@ struct PortalTrackDetailView: View {
         .obsCardStyle()
     }
 
-    /// Karte mit einklappbaren Details (standardmäßig zu)
+    /// Karte mit einklappbaren Details (DisclosureGroup)
+    /// - standardmäßig zu (showDetails = false)
     private var detailsCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             DisclosureGroup(
                 isExpanded: $showDetails,
                 content: {
                     VStack(alignment: .leading, spacing: 8) {
+
+                        // Group = rein optisch/strukturell, keine Layout-Auswirkung
                         Group {
+                            // Viele Felder sind optional oder können leer sein → Fallback in detailRow
                             detailRow(
                                 label: "Titel",
                                 value: track.title?.isEmpty == false ? track.title! : "(ohne Titel)"
@@ -201,6 +257,7 @@ struct PortalTrackDetailView: View {
                             detailRow(label: "Messpunkte", value: "\(track.numMeasurements)")
                         }
 
+                        // Beschreibung nur anzeigen, wenn vorhanden und nicht leer
                         if let desc = track.description, !desc.isEmpty {
                             Divider().padding(.vertical, 4)
                             Text("Beschreibung")
@@ -209,6 +266,8 @@ struct PortalTrackDetailView: View {
                                 .font(.obsBody)
                         }
 
+                        // Wenn Details gerade nachgeladen werden:
+                        // - zeigt Ladeindikator innerhalb der Detail-Section
                         if isLoading {
                             Divider().padding(.vertical, 4)
                             HStack(spacing: 8) {
@@ -222,6 +281,7 @@ struct PortalTrackDetailView: View {
                     .padding(.top, 4)
                 },
                 label: {
+                    // Label-Zeile (immer sichtbar)
                     HStack {
                         Text("Details")
                             .font(.obsSectionTitle)
@@ -238,6 +298,8 @@ struct PortalTrackDetailView: View {
 
     // MARK: - Hilfs-UI
 
+    /// Eine einzelne Zeile "Label : Value" mit rechtsbündigem Wert.
+    /// - Falls value nil/leer ist, wird "–" angezeigt.
     private func detailRow(label: String, value: String?) -> some View {
         let text = (value?.isEmpty == false ? value! : "–")
 
@@ -251,6 +313,7 @@ struct PortalTrackDetailView: View {
         }
     }
 
+    /// Formatiert Sekunden als „X h Y min“ bzw. „Y min“.
     private func formattedDuration(_ seconds: Double) -> String {
         let s = Int(seconds)
         let hours = s / 3600
@@ -264,21 +327,30 @@ struct PortalTrackDetailView: View {
 
     // MARK: - Track-Details nachladen
 
+    /// Lädt die detaillierten Track-Metadaten nach (z.B. Beschreibung, Status, etc.)
+    /// und ersetzt den initialen Track-State.
     private func loadDetail() async {
+        // Doppelte Requests vermeiden
         guard !isLoading else { return }
         isLoading = true
-        defer { isLoading = false }
+        defer { isLoading = false } // sorgt dafür, dass isLoading am Ende immer zurückgesetzt wird
 
         do {
+            // API-Client mit baseUrl erstellen und Detail-Endpunkt aufrufen
             let client = PortalApiClient(baseUrl: baseUrl)
             let response = try await client.fetchTrackDetail(slug: initialTrack.slug)
+
+            // UI-State aktualisieren
             track = response.track
             errorMessage = nil
+
             print("PortalTrackDetailView: Details geladen für \(track.slug)")
         } catch let PortalApiError.httpError(status, body) {
+            // Spezifischer HTTP-Fehler mit Status + Body
             print("PortalTrackDetailView: httpError \(status) – Body: \(body)")
             errorMessage = "Serverfehler \(status).\nAntwort:\n\(body)"
         } catch {
+            // Sonstige Fehler (Networking, Decoding, etc.)
             print("PortalTrackDetailView: unbekannter Fehler: \(error)")
             errorMessage = "Unbekannter Fehler: \(error.localizedDescription)"
         }
@@ -286,7 +358,9 @@ struct PortalTrackDetailView: View {
 
     // MARK: - Track-Daten + Events für Karte laden
 
+    /// Lädt GeoJSON Track-Daten (Route) und Event-Features (z.B. Überholpunkte).
     private func loadTrackData() async {
+        // Doppelte Requests vermeiden
         guard !isLoadingMap else { return }
         isLoadingMap = true
         defer { isLoadingMap = false }
@@ -295,15 +369,16 @@ struct PortalTrackDetailView: View {
             let client = PortalApiClient(baseUrl: baseUrl)
             let data = try await client.fetchTrackData(slug: initialTrack.slug)
 
-            // Route: bevorzugt "track" (gesnappt), Fallback auf "trackRaw"
+            // Route: bevorzugt "track" (gesnappt), Fallback auf "trackRaw" (Rohdaten)
             let routeCoordinates = extractRoute(from: data.track) ?? extractRoute(from: data.trackRaw) ?? []
 
-            // Events: alle Feature-Punkte
+            // Events: Aus GeoJSON FeatureCollection → einzelne Feature-Punkte extrahieren
             var events: [OvertakeEvent] = []
             if let eventsFC = data.events,
                let features = eventsFC.features {
 
                 for feature in features {
+                    // Nur Features mit gültiger Geometry und mind. [lon, lat] verwenden
                     guard let geom = feature.geometry,
                           let coords = geom.coordinates,
                           coords.count >= 2
@@ -311,8 +386,11 @@ struct PortalTrackDetailView: View {
 
                     let lon = coords[0]
                     let lat = coords[1]
+
+                    // Optional: Abstand/Metric aus properties (kann nil sein)
                     let distance = feature.properties?.distanceOvertaker
 
+                    // Domain-Objekt für die Map erstellen
                     let ev = OvertakeEvent(
                         coordinate: .init(latitude: lat, longitude: lon),
                         distance: distance
@@ -321,6 +399,7 @@ struct PortalTrackDetailView: View {
                 }
             }
 
+            // UI-State aktualisieren
             mapRoute = routeCoordinates
             mapEvents = events
             errorMessage = nil
@@ -337,11 +416,15 @@ struct PortalTrackDetailView: View {
 
     /// Nimmt ein GeoJSON-Feature mit LineString-Geometrie
     /// und baut eine Liste von CLLocationCoordinate2D daraus.
+    ///
+    /// Erwartet Koordinaten als Paare [lon, lat] (GeoJSON-Standard).
     private func extractRoute(from feature: PortalTrackFeature?) -> [CLLocationCoordinate2D]? {
+        // Wenn keine Geometrie/Koordinaten da sind → kein Route-Ergebnis
         guard let coords = feature?.geometry?.coordinates, !coords.isEmpty else {
             return nil
         }
 
+        // Aus [ [lon,lat], [lon,lat], ... ] → [CLLocationCoordinate2D]
         return coords.compactMap { pair in
             guard pair.count >= 2 else { return nil }
             let lon = pair[0]
@@ -354,6 +437,7 @@ struct PortalTrackDetailView: View {
 // MARK: - Preview
 
 #Preview {
+    // Demo-Daten für Xcode Preview
     let author = PortalAuthor(id: 1, displayName: "Demo", bio: nil, image: nil)
     let track = PortalTrackSummary(
         id: 1,
@@ -374,6 +458,7 @@ struct PortalTrackDetailView: View {
         author: author
     )
 
+    // NavigationView im Preview, damit navigationTitle/Bar korrekt angezeigt werden
     return NavigationView {
         PortalTrackDetailView(baseUrl: "https://portal.openbikesensor.org", track: track)
     }

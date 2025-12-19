@@ -281,11 +281,6 @@ final class PortalApiClient {
             throw PortalApiError.noHTTPResponse
         }
 
-        // Debug-Logging (hilfreich beim Entwickeln)
-        print("📡 [PortalApiClient] Request:", url.absoluteString)
-        print("📡 Status:", http.statusCode)
-        print("📡 Body:", String(data: data, encoding: .utf8) ?? "<non-UTF8 / empty>")
-
         // Fehlerstatuscodes inkl. Body weiterreichen
         guard (200...299).contains(http.statusCode) else {
             let body = String(data: data, encoding: .utf8) ?? ""

@@ -6,6 +6,7 @@ import CoreLocation
 /// Grundidee:
 /// - Eine Session = eine CSV-Datei.
 /// - Pro Messung eine Zeile (Measurements = 1).
+/// - File-I/O läuft über eine eigene Queue, damit Bluetooth/UI nicht blockieren.
 final class ClassicCsvRecorder {
 
     // =====================================================
@@ -42,20 +43,24 @@ final class ClassicCsvRecorder {
     private let deviceId: String
 
     /// Faktor für Umrechnung distance(cm) → FlightTime(µs).
+    /// (OBS rechnet mit einer linearen Näherung; hier wie in Referenz-Implementationen)
     private let factor: Double = 58.0
 
     /// Anzahl Messungen pro CSV-Zeile.
-    /// eine Messung pro Zeile.
+    /// In diesem Recorder: genau eine Messung pro Zeile.
     private let maxMeasurementsPerLine = 1
 
     // =====================================================
     // MARK: - Init
     // =====================================================
 
+    /// Initialisiert den Recorder mit den benötigten Metadaten.
+    ///
     /// - Parameters:
-    ///   - handlebarOffsetCm: Abstand je Lenkerseite zur Radmitte (z.B. 30 cm)
-    ///   - appVersion: App-Version (z.B. "1.0.0")
-    ///   - firmwareVersion: Firmware des OBS Classic (optional)
+    ///   - handlebarOffsetCm: Abstand je Lenkerseite zur Radmitte (z.B. 30 cm).
+    ///     Dieser Wert wird später von den Rohwerten abgezogen, um korrigierte Werte zu erhalten.
+    ///   - appVersion: App-Version (z.B. "1.0.0") – wird in Metadaten/DeviceId geschrieben.
+    ///   - firmwareVersion: Firmware des OBS Classic (optional) – wird in Metadaten geschrieben.
     init(handlebarOffsetCm: Int, appVersion: String, firmwareVersion: String?) {
         self.handlebarOffsetCm = handlebarOffsetCm
         self.appVersion = appVersion
@@ -74,9 +79,10 @@ final class ClassicCsvRecorder {
     /// - öffnet FileHandle
     /// - schreibt Metadatenzeile (Key=Value&Key=Value…)
     /// - schreibt CSV-Headerzeile
+    ///
+    /// Hinweis: `queue.sync` stellt sicher, dass nach Rückkehr aus der Funktion
+    /// wirklich schon eine offene Datei existiert (damit anschließend sofort geschrieben werden kann).
     func startSession() {
-        // sync: Der Aufrufer bekommt erst “fertig” zurück, wenn Datei wirklich offen ist.
-        // Das ist praktisch, damit nach startSession() sofort recordMeasurement() funktionieren kann.
         queue.sync {
             do {
                 let fm = FileManager.default
@@ -131,8 +137,10 @@ final class ClassicCsvRecorder {
     }
 
     /// Beendet die Session:
-    /// - synchronisiert den FileBuffer
+    /// - synchronisiert den FileBuffer (flush)
     /// - schließt das FileHandle
+    ///
+    /// Hinweis: auch hier `queue.sync`, damit beim Return garantiert geschlossen ist.
     func finishSession() {
         queue.sync {
             guard let handle = self.handle else { return }
@@ -162,6 +170,11 @@ final class ClassicCsvRecorder {
 
     /// Schreibt eine einzelne Messung als CSV-Zeile.
     ///
+    /// Ablauf:
+    /// 1) Validieren, dass eine Session aktiv ist (`handle != nil`)
+    /// 2) Zeile generieren (inkl. Korrektur, GPS-Felder, Flags)
+    /// 3) Zeile als UTF-8 ans Dateiende schreiben
+    ///
     /// - Parameters:
     ///   - leftCm: Rohwert linker Abstand in cm (ohne Lenkerkorrektur), oder nil
     ///   - rightCm: Rohwert rechter Abstand in cm (ohne Lenkerkorrektur), oder nil
@@ -178,11 +191,15 @@ final class ClassicCsvRecorder {
         // async: Messungen blockieren den Aufrufer nicht (Bluetooth/UI Thread bleibt frei).
         queue.async {
             guard let handle = self.handle else {
+                // Wenn keine Session offen ist, kann nicht geschrieben werden.
                 print("ClassicCsvRecorder: recordMeasurement ohne offene Session")
                 return
             }
 
+            // Zeitstempel der Messung
             let now = Date()
+
+            // CSV Zeile erzeugen (Semikolon-getrennt)
             let line = self.genCSVRow(
                 date: now,
                 location: location,
@@ -211,6 +228,8 @@ final class ClassicCsvRecorder {
     ///
     /// Format: URL-ähnliche Key-Value-Paare, getrennt mit `&`
     /// Beispiel: "Key=Value&Key2=Value2"
+    ///
+    /// Diese Metadaten werden von OBS-Tools/Uploadern genutzt, um die CSV korrekt zu interpretieren.
     private func genMetadataLine() -> String {
         // Angelehnt an die Flutter-App / UploadManager.dart (_genMetadataHeader)
         let fields = [
@@ -251,6 +270,8 @@ final class ClassicCsvRecorder {
 
     /// CSV-Headerzeile entsprechend der OBS-Spezifikation.
     /// Trennzeichen ist `;` (typisch im deutschsprachigen CSV-Kontext).
+    ///
+    /// Wichtig: Die Reihenfolge muss zum späteren `genCSVRow()` passen.
     private func genCSVHeader(maxMeasurements: Int) -> String {
         var fields: [String] = [
             // Zeitangaben
@@ -303,8 +324,14 @@ final class ClassicCsvRecorder {
     // =====================================================
 
     /// Baut eine vollständige CSV-Datenzeile für genau eine Messung.
-    /// - Korrigiert Left/Right um handlebarOffsetCm
-    /// - Berechnet Lus/Rus als µs = raw(cm) * factor
+    ///
+    /// Inhalt:
+    /// - Datum/Zeit in UTC (Date/Time + Millis)
+    /// - Optional GPS-Felder (sonst leer)
+    /// - Optional Batterie (sonst leer)
+    /// - Left/Right (korrigiert um handlebarOffsetCm)
+    /// - Flags (Confirmed/Marked/Invalid/InsidePrivacyArea)
+    /// - Tms1/Lus1/Rus1 (FlightTimes auf Basis *Rohwert* in cm)
     private func genCSVRow(
         date: Date,
         location: CLLocation?,
@@ -374,6 +401,7 @@ final class ClassicCsvRecorder {
 
         // --- Abstände korrigieren (für CSV Left/Right) ---
         // Korrigiert = raw(cm) - handlebarOffsetCm, nicht < 0
+        // (handlebarOffsetCm entspricht "halbe Lenkerbreite" pro Seite)
         let leftCorrected: Int? = leftCm.map { max(Int($0) - handlebarOffsetCm, 0) }
         let rightCorrected: Int? = rightCm.map { max(Int($0) - handlebarOffsetCm, 0) }
 
@@ -381,9 +409,11 @@ final class ClassicCsvRecorder {
         let rightCorrectedStr = rightCorrected.map { String($0) } ?? ""
 
         // --- Flags/Marker ---
+        // Confirmed = 1 wenn Button-Press / bestätigtes Überholen, sonst 0
         let confirmedStr = confirmed ? "1" : "0"
 
         // Bei bestätigtem Button-Event markieren wir das Feld “Marked”
+        // (String wird von manchen Tools als Ereignislabel genutzt)
         let markedStr = confirmed ? "OVERTAKING" : ""
 
         // Aktuell keine Invalid/Privacy-Logik implementiert → 0
@@ -400,7 +430,8 @@ final class ClassicCsvRecorder {
         let tms1Str = "0"
 
         // Lus1/Rus1: FlightTime (µs) = raw distance (cm) * factor
-        // Wichtig: Hier wird *der Rohwert* verwendet (wie in deinem Kommentar), nicht der korrigierte.
+        // Wichtig: Hier wird *der Rohwert* verwendet, nicht der korrigierte.
+        // (OBS-Referenzdaten nutzen häufig Rohwerte für FlightTimes und getrennt davon korrigierte cm-Werte.)
         let lus1Str: String
         if let leftCm {
             let us = Int(Double(leftCm) * factor)
@@ -417,7 +448,7 @@ final class ClassicCsvRecorder {
             rus1Str = ""
         }
 
-        // Freitextkommentar pro Zeile
+        // Freitextkommentar pro Zeile (kann in Tools angezeigt werden)
         let commentStr = "Recorded via OBS iOS Classic"
 
         // Alle Felder in der exakten Reihenfolge des Headers zusammenbauen

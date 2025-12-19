@@ -1,56 +1,82 @@
-// SplashView.swift
 import SwiftUI
 
+/// Splash mit „Text-Mask Reveal“
+/// - Titel wird per animierter Maske (von links nach rechts) „aufgedeckt“
+/// - Subtitle erscheint leicht verzögert (Fade + Rise)
 struct SplashView: View {
-    @State private var overallOpacity: Double = 0.0
-    @State private var text1Scale: CGFloat = 0.7
-    @State private var showText2 = false
-    @State private var text2Offset: CGFloat = 10
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @State private var hasAnimated = false
+
+    // Reveal-Progress (0…1) steuert die Maskenbreite
+    @State private var reveal: CGFloat = 0.0
+
+    // Subtitle Animation
+    @State private var showSubtitle = false
 
     var body: some View {
         ZStack {
             Color("LaunchBackground")
                 .ignoresSafeArea()
 
-            VStack(spacing: 8) {
+            VStack(spacing: 10) {
+
+                // MARK: - Title mit Mask Reveal
                 Text("#Bürger*innenforschung")
                     .font(.system(size: 30, weight: .bold))
-                    .tracking(1)
-                    .multilineTextAlignment(.center)
+                    .tracking(0.6)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .scaleEffect(text1Scale)
-                    .opacity(overallOpacity)
+                    .minimumScaleFactor(0.75)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.primary)
+                    // Maske deckt den Text von links nach rechts auf
+                    .mask(alignment: .leading) {
+                        GeometryReader { geo in
+                            Rectangle()
+                                .frame(width: geo.size.width * reveal)
+                        }
+                    }
+                    // optional: kleine “Premium” Bewegung
+                    .opacity(reduceMotion ? 1 : (reveal > 0 ? 1 : 0))
+                    .scaleEffect(reduceMotion ? 1 : (reveal > 0 ? 1.0 : 0.99))
+                    .accessibilityLabel("Bürgerinnenforschung")
 
+                // MARK: - Subtitle (staggered)
                 Text("für Verkehrssicherheit")
                     .font(.headline)
-                    .opacity(showText2 ? 1.0 : 0.0)
-                    .offset(y: showText2 ? 0 : text2Offset)
+                    .foregroundStyle(.primary.opacity(0.85))
+                    .opacity(showSubtitle ? 1 : 0)
+                    .offset(y: showSubtitle ? 0 : 8)
             }
+            .padding(.horizontal, 24)
         }
         .task {
+            guard !hasAnimated else { return }
+            hasAnimated = true
             await runAnimation()
         }
     }
 
     @MainActor
     private func runAnimation() async {
-        withAnimation(.easeOut(duration: 0.4)) {
-            overallOpacity = 1.0
-            text1Scale = 1.15
+        // Reduce Motion: direkt anzeigen (ohne Bewegung)
+        if reduceMotion {
+            reveal = 1.0
+            showSubtitle = true
+            return
         }
 
-        try? await Task.sleep(nanoseconds: 400_000_000)
-
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-            text1Scale = 1.0
+        // 1) Title Reveal
+        withAnimation(.easeOut(duration: 0.65)) {
+            reveal = 1.0
         }
 
-        try? await Task.sleep(nanoseconds: 450_000_000)
+        // kleiner Stagger
+        do { try await Task.sleep(nanoseconds: 180_000_000) } catch { return }
 
-        withAnimation(.easeOut(duration: 0.4)) {
-            showText2 = true
-            text2Offset = 0
+        // 2) Subtitle nachziehen (Fade + Rise)
+        withAnimation(.easeOut(duration: 0.45)) {
+            showSubtitle = true
         }
     }
 }

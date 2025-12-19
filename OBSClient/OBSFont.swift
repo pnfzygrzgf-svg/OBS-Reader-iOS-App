@@ -2,64 +2,91 @@
 
 import SwiftUI
 
+// =====================================================
 // MARK: - Basis-Helfer für OBS-Fonts
+// =====================================================
 
 extension Font {
-    /// Rounded-Systemfont für einen gegebenen TextStyle (headline, body, caption, …)
-    /// - Parameter style: Der dynamische TextStyle (passt sich an Dynamic Type an)
-    /// - Parameter weight: Schriftgewicht (Standard: .regular)
+
+    /// Erzeugt eine System-Schrift im „rounded“-Design für einen dynamischen TextStyle.
     ///
-    /// Nutzung:
-    ///   Text("Hallo").font(.obs(.body, weight: .medium))
+    /// Warum TextStyle?
+    /// - `TextStyle` (z.B. `.body`, `.headline`, `.caption`) unterstützt **Dynamic Type**:
+    ///   Wenn der Nutzer in iOS die Schriftgröße hochstellt, skaliert die Schrift automatisch mit.
+    ///
+    /// Warum design: .rounded?
+    /// - Verleiht der UI eine „runde“, freundlichere Typografie (ähnlich SF Rounded).
+    ///
+    /// - Parameters:
+    ///   - style: Dynamischer TextStyle (passt sich Dynamic Type an)
+    ///   - weight: Schriftgewicht (Standard: `.regular`)
+    ///
+    /// Beispiel:
+    /// `Text("Hallo").font(.obs(.body, weight: .medium))`
     static func obs(_ style: TextStyle, weight: Weight = .regular) -> Font {
         .system(style, design: .rounded).weight(weight)
     }
 
-    /// Rounded-Systemfont mit fester Punktgröße.
-    /// - Parameter size: Schriftgröße in Punkten
-    /// - Parameter weight: Schriftgewicht (Standard: .regular)
+    /// Erzeugt eine System-Schrift im „rounded“-Design mit fixer Punktgröße.
     ///
-    /// Nutzung:
-    ///   Text("Wert").font(.obs(size: 24, weight: .bold))
+    /// Wann sinnvoll?
+    /// - Für große Zahlendarstellungen oder feste Rollen, wo du eine konkrete Größe willst.
+    ///
+    /// Hinweis:
+    /// - Fixe Größen skalieren *nicht* automatisch so flexibel wie TextStyles.
+    ///   (Je nach Bedarf kann das trotzdem gewollt sein, z.B. bei großen Zahlen.)
+    ///
+    /// - Parameters:
+    ///   - size: Schriftgröße in Punkten
+    ///   - weight: Schriftgewicht (Standard: `.regular`)
+    ///
+    /// Beispiel:
+    /// `Text("Wert").font(.obs(size: 24, weight: .bold))`
     static func obs(size: CGFloat, weight: Weight = .regular) -> Font {
         .system(size: size, weight: weight, design: .rounded)
     }
 }
 
-// MARK: - App-eigene Typo-Rollen
-// Semantische Aliase, damit im restlichen Code nicht überall „magische“ Größen stehen,
-// sondern sprechende Rollen wie .obsScreenTitle, .obsBody, etc.
+// =====================================================
+// MARK: - App-eigene Typo-Rollen (semantische Aliase)
+// =====================================================
+//
+// Idee:
+// Statt im Code überall „magische Zahlen“ oder Styles zu verteilen,
+// gibt es sprechende Rollen wie `.obsScreenTitle`, `.obsBody`, `.obsValue`.
+// So bleibt das Design konsistent und Änderungen sind zentral möglich.
 
 extension Font {
-    /// Titel oben im Screen (z.B. „Messwerte“, „Fahrtaufzeichnungen“)
-    /// Relativ groß und fett für prominente Überschriften.
+
+    /// Sehr prominenter Titel (z.B. Screen-Überschrift innerhalb einer Card).
+    /// Groß + bold, damit er sofort auffällt.
     static var obsScreenTitle: Font {
         .obs(size: 24, weight: .bold)
     }
 
-    /// Abschnittsüberschrift (z.B. „Sensor links“, „Fahrtaufzeichnungen“)
-    /// Etwas kleiner als Screen-Titel, aber hervorgehoben.
+    /// Abschnittsüberschrift (z.B. „Sensorwerte“, „Lenkerbreite“).
+    /// Etwas kleiner als ScreenTitle, aber immer noch klar hervorgehoben.
     static var obsSectionTitle: Font {
         .obs(.headline, weight: .semibold)
     }
 
-    /// Standard-Text für Fließtexte und Beschreibungen.
+    /// Standard-Fließtext für normale Inhalte.
     static var obsBody: Font {
         .obs(.body)
     }
 
-    /// Kleinere Zusatzinfos (z.B. rechtliche Hinweise, kurze Untertitel).
+    /// Kleinerer Text für Zusatzinfos/Erklärungen.
     static var obsFootnote: Font {
         .obs(.footnote)
     }
 
-    /// Kleine Meta-Infos (Dateigröße, Datum, Hinweise etc.).
+    /// Sehr kleiner Text für Meta-Infos (Dateigröße, Datum, kleine Labels).
     static var obsCaption: Font {
         .obs(.caption)
     }
 
-    /// Werte-Anzeige (Sensorwerte, Distanzen, wichtige Zahlen).
-    /// Etwas größer und halb-fett, damit Zahlen hervorstechen.
+    /// Hervorgehobene Zahlen/Werte (z.B. Sensor-Abstände).
+    /// Größer + semibold, damit Zahlen gut lesbar sind.
     static var obsValue: Font {
         .obs(size: 18, weight: .semibold)
     }

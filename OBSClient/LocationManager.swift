@@ -4,95 +4,121 @@ import Foundation
 import CoreLocation
 import Combine
 
-/// Kapselt den CoreLocation-Manager und leitet GPS-Updates
-/// an den BluetoothManager weiter, damit dieser Geolocation-Events
-/// in die BIN-Datei schreiben kann.
+/// Kapselt CoreLocation in einer eigenen Klasse und leitet GPS-Updates
+/// an den BluetoothManager weiter.
 ///
-/// Aufgaben:
-/// - Standortberechtigungen beobachten
-/// - Hintergrund-GPS konfigurieren
-/// - letzte bekannte Position veröffentlichen (`@Published lastLocation`)
-/// - bei neuen Positionen: `bluetoothManager.handleLocationUpdate(_:)` aufrufen
+/// Wozu?
+/// - UI kann Location-Status und letzte Position beobachten (`@Published`)
+/// - CoreLocation-Konfiguration ist an einer Stelle gebündelt
+/// - BluetoothManager bekommt neue Positionen über `handleLocationUpdate(_:)`,
+///   um Distanz zu zählen und (im Lite-Modus) Geolocation-Events in die BIN zu schreiben.
 final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
 
-    /// Aktueller Authorization-Status (für UI/Debug)
+    // =====================================================
+    // MARK: - Published (für SwiftUI)
+    // =====================================================
+
+    /// Aktueller Authorization-Status (für UI/Debug und Permission-Hinweise).
     @Published var authorizationStatus: CLAuthorizationStatus
-    /// Letzte von iOS gemeldete Position
+
+    /// Letzte von iOS gemeldete Position (z.B. für Debug/Anzeige).
     @Published var lastLocation: CLLocation?
 
-    /// Interner CoreLocation-Manager
+    // =====================================================
+    // MARK: - Private Properties
+    // =====================================================
+
+    /// Interner CoreLocation-Manager, der die eigentlichen GPS-Updates liefert.
     private let manager: CLLocationManager
-    /// Referenz auf den BluetoothManager, um GPS-Updates in die Aufnahmelogik zu geben
-    /// `unowned`, weil BluetoothManager den LocationManager erstellt und länger lebt.
+
+    /// Referenz auf den BluetoothManager, damit GPS-Updates in die Aufnahmelogik fließen.
+    /// `unowned`, weil der BluetoothManager den LocationManager erzeugt und i.d.R. länger lebt.
+    /// (Achtung: Wenn bluetoothManager früher freigegeben würde, gäbe es einen Crash.)
     private unowned let bluetoothManager: BluetoothManager
+
+    // =====================================================
+    // MARK: - Init / Setup
+    // =====================================================
 
     /// Initialisiert den LocationManager und konfiguriert CoreLocation.
     ///
     /// - Parameter bluetoothManager:
-    ///   Referenz, um GPS-Updates direkt an die BIN-Schreiblogik zu delegieren.
+    ///   Referenz, um GPS-Updates direkt an die Aufnahmelogik zu delegieren.
     init(bluetoothManager: BluetoothManager) {
         self.bluetoothManager = bluetoothManager
 
+        // CLLocationManager erzeugen
         let manager = CLLocationManager()
         self.manager = manager
-        // Initialen Berechtigungsstatus abfragen
+
+        // Initialen Berechtigungsstatus abfragen (wird für UI veröffentlicht)
         self.authorizationStatus = manager.authorizationStatus
 
         super.init()
 
-        // Delegate setzen, damit wir Callbacks erhalten
+        // Delegate setzen, damit wir Callbacks bekommen (Auth-Änderung, Locations, Fehler)
         manager.delegate = self
 
-        // GPS-Einstellungen: hohe Genauigkeit, alle Updates
+        // GPS-Einstellungen:
+        // - bestmögliche Genauigkeit (kann mehr Akku kosten)
         manager.desiredAccuracy = kCLLocationAccuracyBest
+
+        // - keine Mindestdistanz: jedes Update kommt durch (kann mehr Updates erzeugen)
         manager.distanceFilter = kCLDistanceFilterNone
 
-        //  WICHTIG für Hintergrund:
-        // - darf im Hintergrund weiterlaufen
+        // WICHTIG für Hintergrund-Aufzeichnung:
+        // - erlaubt Updates im Hintergrund (setzt iOS-Entitlements/Info.plist voraus!)
         manager.allowsBackgroundLocationUpdates = true
-        // - iOS soll nicht „automatisch pausieren“
+
+        // - iOS soll Updates nicht automatisch pausieren (stabiler, aber mehr Akku)
         manager.pausesLocationUpdatesAutomatically = false
 
-        //  Statt "WhenInUse" jetzt "Always" anfragen,
-        // damit im Hintergrund aufgezeichnet werden kann.
+        // „Always“ anfragen, damit auch bei gesperrtem Bildschirm / Hintergrund aufgezeichnet werden kann.
+        // (setzt passende Info.plist Keys voraus: NSLocationAlwaysAndWhenInUseUsageDescription etc.)
         manager.requestAlwaysAuthorization()
 
-        // Falls schon erlaubt war, direkt Standort-Updates starten
+        // Wenn schon vorher erlaubt war, sofort starten (sonst kommt später der Auth-Callback)
         if manager.authorizationStatus == .authorizedAlways ||
             manager.authorizationStatus == .authorizedWhenInUse {
             manager.startUpdatingLocation()
         }
     }
 
+    // =====================================================
     // MARK: - CLLocationManagerDelegate
+    // =====================================================
 
     /// Wird aufgerufen, wenn sich die Location-Berechtigung ändert
     /// (z. B. durch Systemdialog oder Einstellungen).
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
 
-        // Status ins @Published-Property spiegeln (auf dem Main-Thread für das UI)
+        // @Published-Properties sollten für SwiftUI auf dem Main-Thread geändert werden.
         DispatchQueue.main.async {
             self.authorizationStatus = status
         }
 
         switch status {
         case .authorizedAlways, .authorizedWhenInUse:
-            // Sicherheitshalber nochmal setzen, falls iOS den Manager neu konfiguriert hat
+            // Sicherheitshalber konfigurieren wir Background-Flags erneut,
+            // falls iOS den Manager intern neu initialisiert/ändert.
             manager.allowsBackgroundLocationUpdates = true
             manager.pausesLocationUpdatesAutomatically = false
+
+            // Startet kontinuierliche Standortupdates.
             manager.startUpdatingLocation()
 
         case .denied, .restricted:
-            // Nutzer hat abgelehnt oder es ist anderweitig untersagt
+            // Nutzer hat abgelehnt oder das System verbietet Location (z.B. Screen Time/MDM).
+            // Dann stoppen wir Updates, um Akku zu sparen und unnötige Calls zu vermeiden.
             manager.stopUpdatingLocation()
 
         case .notDetermined:
-            // User hat noch keine Entscheidung getroffen -> nichts tun
+            // User hat noch nicht entschieden -> nichts erzwingen.
             break
 
         @unknown default:
-            // Für zukünftige, unbekannte Statuswerte: lieber nichts tun
+            // Zukunftssicher: bei neuen Statuswerten lieber vorsichtig sein.
             break
         }
     }
@@ -100,20 +126,22 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
     /// Wird aufgerufen, wenn neue Standortdaten verfügbar sind.
     func locationManager(_ manager: CLLocationManager,
                          didUpdateLocations locations: [CLLocation]) {
-        // wir nehmen die letzte (aktuellste) Position aus dem Array
+        // iOS liefert ggf. mehrere Locations (Batch).
+        // Wir nehmen die letzte (= aktuellste) Position.
         guard let loc = locations.last else { return }
 
-        // letzte Position im Published-Property aktualisieren (für UI/Debug)
+        // letzte Position veröffentlichen (z.B. für UI/Debug)
         DispatchQueue.main.async {
             self.lastLocation = loc
         }
 
-        // Hier werden die Geolocation-Events erzeugt und in die BIN geschrieben.
-        // BluetoothManager kümmert sich um Distanzberechnung + Event-Schreiben.
+        // Weiterreichen an BluetoothManager:
+        // - zählt Distanz
+        // - schreibt (im Lite-Modus) Geolocation-Events in die BIN-Datei
         bluetoothManager.handleLocationUpdate(loc)
     }
 
-    /// Fehler-Callback vom CoreLocation-Manager.
+    /// Fehler-Callback vom CoreLocation-Manager (z.B. kein GPS, Timeout, denied).
     func locationManager(_ manager: CLLocationManager,
                          didFailWithError error: Error) {
         print("LocationManager error: \(error)")

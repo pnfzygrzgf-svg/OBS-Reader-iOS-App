@@ -3,43 +3,51 @@
 import Foundation
 import WebKit
 
-/// Kopiert alle Cookies aus dem WKWebView-Speicher (WKHTTPCookieStore)
-/// in die globale Cookie-Storage von URLSession (HTTPCookieStorage.shared).
+/// Synchronisiert Cookies von WKWebView zu URLSession.
 ///
-/// Hintergrund:
-/// - WKWebView verwaltet Cookies in einem eigenen Store (WKWebsiteDataStore / WKHTTPCookieStore).
-/// - URLSession nutzt standardmäßig HTTPCookieStorage.shared.
-/// - Wenn du nach einem WebView-Login API-Requests mit URLSession machst,
-///   fehlen ohne Sync oft Session-/Auth-Cookies.
+/// Zweck:
+/// WKWebView und URLSession verwenden standardmäßig **verschiedene Cookie-Speicher**:
+/// - WKWebView: `WKWebsiteDataStore.default().httpCookieStore`
+/// - URLSession: `HTTPCookieStorage.shared`
 ///
-/// - Parameter completion: Wird aufgerufen, nachdem alle Cookies übernommen wurden.
+/// Wenn du z.B. einen Login in einer WKWebView machst und danach API-Requests mit URLSession,
+/// fehlen ohne diesen Sync oft wichtige Cookies (Session/Auth/CSRF), wodurch Requests fehlschlagen.
+///
+/// - Parameter completion: Wird aufgerufen, sobald alle Cookies kopiert wurden.
+///   Wichtig, weil das Auslesen von WKWebView-Cookies asynchron passiert.
 func syncCookiesToURLSession(completion: @escaping () -> Void) {
-    // Default-DataStore entspricht dem “normalen” persistenten WKWebView Speicher
-    // (nicht dem ephemeral / private browsing Store).
+
+    // Der "default" DataStore ist der normale, persistente WKWebView-Speicher
+    // (nicht der private/ephemeral Store).
     let dataStore = WKWebsiteDataStore.default()
 
-    // Der CookieStore von WKWebView liefert alle aktuell bekannten Cookies asynchron.
+    // Der WKHTTPCookieStore liefert alle Cookies asynchron über einen Callback.
     dataStore.httpCookieStore.getAllCookies { cookies in
-        // Globale Cookie-Storage, die URLSession (in der Regel) verwendet.
-        // Hinweis: Das ist processweit/shared und betrifft alle URLSession-Requests,
+
+        // HTTPCookieStorage.shared ist der globale Cookie-Speicher,
+        // den URLSession standardmäßig nutzt (prozessweit).
+        // Achtung: Das beeinflusst auch andere URLSession-Requests in deiner App,
         // sofern Cookie-Handling nicht explizit deaktiviert wurde.
         let cookieStorage = HTTPCookieStorage.shared
 
-        // Alle Cookies aus WKWebView in HTTPCookieStorage übernehmen.
-        // Dadurch “sieht” URLSession danach dieselben Cookies (z.B. Session, CSRF, etc.).
+        // Jedes Cookie aus dem WKWebView Store in den URLSession-Store kopieren.
+        // Danach kann URLSession dieselben Cookies mitsenden (z.B. Session-Cookie, CSRF, ...).
         for cookie in cookies {
             cookieStorage.setCookie(cookie)
         }
 
-        // Debug-Ausgabe: zeigt, welche Cookies jetzt in HTTPCookieStorage liegen.
-        // Praktisch, um zu prüfen, ob Domain/Path stimmen und ob z.B. Session-Cookies da sind.
+        // Debug: Ausgabe aller Cookies, die jetzt im URLSession-Store liegen.
+        // Hilfreich, um zu prüfen:
+        // - sind Cookies überhaupt vorhanden?
+        // - stimmen domain/path?
+        // - ist ein Session-Cookie dabei?
         print("🍪 [CookieSync] Cookies in HTTPCookieStorage.shared:")
         for cookie in cookieStorage.cookies ?? [] {
             print("  - \(cookie.name) | domain=\(cookie.domain) | path=\(cookie.path)")
         }
 
-        // Callback: Signalisiert dem Aufrufer, dass der Sync abgeschlossen ist.
-        // (Wichtig, weil getAllCookies asynchron ist.)
+        // Wichtig: completion erst hier aufrufen, weil getAllCookies asynchron ist.
+        // Der Aufrufer kann danach sicher URLSession-Requests starten.
         completion()
     }
 }

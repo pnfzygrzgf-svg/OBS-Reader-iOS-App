@@ -2,129 +2,187 @@
 
 import Foundation
 
+// =====================================================
+// MARK: - Upload Result
+// =====================================================
+
 /// Ergebnis eines Upload-Versuchs.
-/// Kapselt HTTP-Statuscode und Text-Antwort des Servers.
+/// Kapselt HTTP-Statuscode und die Text-Antwort des Servers,
+/// damit die UI bequem Erfolg/Fehler anzeigen kann.
 struct OBSUploadResult {
+
+    /// HTTP Statuscode (z.B. 200, 201, 400, 401, 500 ...)
     let statusCode: Int
+
+    /// Antwort-Body des Servers (meist JSON oder Text)
     let responseBody: String
 
-    /// Wurde der Upload aus HTTP-Sicht erfolgreich (2xx)?
+    /// True, wenn der Upload aus HTTP-Sicht erfolgreich war (Status 2xx).
     var isSuccessful: Bool {
         (200...299).contains(statusCode)
     }
 }
 
-/// Verantwortlich für das Hochladen von OBS-Track-Dateien (.bin) zum Server.
+// =====================================================
+// MARK: - OBSUploader
+// =====================================================
+
+/// Verantwortlich für das Hochladen von OBS-Track-Dateien (.bin) zum OBS-Server.
 ///
-/// - Implementiert einen `multipart/form-data` POST-Request,
-///   der dem Java-Client entspricht (Part-Name: `"body"`).
-/// - Authentifizierung per Header: `Authorization: OBSUserId <apiKey>`
+/// Technischer Hintergrund:
+/// - Das OBS-Portal erwartet einen `multipart/form-data` POST-Request.
+/// - Der Dateipart heißt (wie beim Java-Client) **"body"**.
+/// - Authentifizierung erfolgt über einen Custom-Header:
+///   `Authorization: OBSUserId <apiKey>`
+///
+/// Design:
+/// - Als Singleton (`shared`) implementiert, damit man es einfach überall aufrufen kann.
 final class OBSUploader {
+
     /// Singleton-Instanz für bequemen Zugriff.
     static let shared = OBSUploader()
+
+    /// Private init verhindert, dass mehrere Instanzen erstellt werden.
     private init() {}
 
-    /// Mögliche Fehler beim Aufbau/Ausführen des Requests (nicht Server-Fehlercodes).
+    // =====================================================
+    // MARK: - Errors
+    // =====================================================
+
+    /// Fehler beim Aufbau/Ausführen des Requests (nicht Server-Fehlercodes).
     enum UploadError: Error {
-        case invalidURL       // Base-URL oder zusammengesetzte URL war ungültig
-        case noHTTPResponse   // URLSession hat keine HTTPURLResponse geliefert
+        /// Base-URL oder zusammengesetzte URL war ungültig
+        case invalidURL
+
+        /// URLSession hat keine HTTPURLResponse geliefert (z.B. unerwarteter Response-Typ)
+        case noHTTPResponse
     }
+
+    // =====================================================
+    // MARK: - Public API
+    // =====================================================
 
     /// Lädt eine Track-Datei als multipart/form-data zum OBS-Server hoch.
     ///
-    /// Entspricht dem Java-Code:
+    /// Entspricht dem Java-Client:
     /// - POST
     /// - multipart/form-data
     /// - Part-Name: "body"
     /// - Authorization: "OBSUserId <apiKey>"
     ///
     /// - Parameters:
-    ///   - fileURL: Lokale URL zur .bin-Datei, die hochgeladen werden soll.
-    ///   - baseUrl: Basis-URL des OBS-Portals (z. B. "https://example.com" oder bereits mit "/api/tracks").
-    ///   - apiKey: API-Key/User-ID für den Server (wird im Authorization-Header verwendet).
+    ///   - fileURL: Lokale URL zur `.bin` Datei, die hochgeladen werden soll.
+    ///   - baseUrl: Basis-URL des OBS-Portals (z.B. "https://example.com")
+    ///              oder bereits inkl. "/api/tracks".
+    ///   - apiKey: API-Key/User-ID für den Server (landet im Authorization-Header).
     ///
-    /// - Returns: `OBSUploadResult` mit HTTP-Statuscode und Antwort-Body als String.
-    /// - Throws: `UploadError` (z. B. invalidURL/noHTTPResponse) oder Fehler von `Data(contentsOf:)` / `URLSession`.
+    /// - Returns: OBSUploadResult mit HTTP-Statuscode und Antwort-Body.
+    /// - Throws:
+    ///   - UploadError.invalidURL / .noHTTPResponse
+    ///   - File-Lesefehler (Data(contentsOf:))
+    ///   - Netzwerkfehler (URLSession)
     func uploadTrack(fileURL: URL, baseUrl: String, apiKey: String) async throws -> OBSUploadResult {
-        // Basis-URL ggf. auf /api/tracks ergänzen
+
+        // 1) Basis-URL normalisieren, damit sie sicher auf /api/tracks zeigt.
         let urlString = normalizeObsUrl(baseUrl)
         guard let url = URL(string: urlString) else {
             throw UploadError.invalidURL
         }
 
-        // Dateiinhalt in den Speicher laden (für große Dateien ggf. optimierbar)
+        // 2) Datei komplett in den Speicher laden.
+        // Hinweis: Für sehr große Dateien könnte man streaming nutzen,
+        // aber für typische OBS-Tracks ist das oft ausreichend.
         let fileData = try Data(contentsOf: fileURL)
 
-        // Multipart-Boundary eindeutig machen
+        // 3) Boundary erzeugen (muss pro Request eindeutig sein)
         let boundary = "Boundary-\(UUID().uuidString)"
 
-        // HTTP-Request konfigurieren
+        // 4) Request konfigurieren (Methode + Header)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        // OBS-spezifischer Authorization-Header
+
+        // OBS-spezifische Auth: "OBSUserId <apiKey>"
         request.setValue("OBSUserId \(apiKey)", forHTTPHeaderField: "Authorization")
-        // multipart/form-data inkl. Boundary
+
+        // Content-Type für multipart inkl. boundary
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 
-        // Body manuell als multipart/form-data zusammenbauen
+        // 5) Multipart-Body zusammenbauen
         var body = Data()
         let lineBreak = "\r\n"
 
-        // --boundary
+        // Start des File-Parts: --boundary
         body.append("--\(boundary)\(lineBreak)")
-        // Content-Disposition: form-data; name="body"; filename="..."
+
+        // Part-Header: Name muss "body" heißen, filename setzen wir auf den Dateinamen
         body.append("Content-Disposition: form-data; name=\"body\"; filename=\"\(fileURL.lastPathComponent)\"\(lineBreak)")
-        // Content-Type des Files (generisch als Binärdaten)
+
+        // Content-Type des Files: generisch binär
         body.append("Content-Type: application/octet-stream\(lineBreak)\(lineBreak)")
-        // tatsächlicher Dateiinhalt
+
+        // File-Daten anhängen
         body.append(fileData)
         body.append(lineBreak)
+
         // Abschluss-Boundary: --boundary--
         body.append("--\(boundary)--\(lineBreak)")
 
+        // Body dem Request zuweisen
         request.httpBody = body
 
-        // Request asynchron senden
+        // 6) Request senden (async/await)
         let (data, response) = try await URLSession.shared.data(for: request)
 
-        // Sicherstellen, dass es sich um eine HTTP-Antwort handelt
+        // 7) Response als HTTP prüfen
         guard let httpResponse = response as? HTTPURLResponse else {
             throw UploadError.noHTTPResponse
         }
 
-        // Antwort-Body als String (falls möglich)
+        // 8) Antwort-Body als String (UTF-8) dekodieren
         let responseBody = String(data: data, encoding: .utf8) ?? ""
 
+        // 9) Ergebnisobjekt zurückgeben
         return OBSUploadResult(
             statusCode: httpResponse.statusCode,
             responseBody: responseBody
         )
     }
 
+    // =====================================================
+    // MARK: - URL Normalisierung
+    // =====================================================
+
     /// Ergänzt die Basis-URL so, dass sie auf `/api/tracks` endet.
     ///
-    /// Entspricht `normalizeObsUrl()` aus dem Java-Client:
-    /// - Wenn `baseUrl` bereits mit `/api/tracks` oder `/api/tracks/` endet -> unverändert zurückgeben.
-    /// - Sonst `/api/tracks` (mit oder ohne Slash dazwischen) anhängen.
+    /// Beispiel:
+    /// - "https://example.com"        -> "https://example.com/api/tracks"
+    /// - "https://example.com/"       -> "https://example.com/api/tracks"
+    /// - "https://example.com/api/tracks"  -> bleibt so
+    /// - "https://example.com/api/tracks/" -> bleibt so
     private func normalizeObsUrl(_ baseUrl: String) -> String {
         var url = baseUrl
 
-        // Bereits vollständig?
+        // Falls die URL noch nicht auf /api/tracks endet, hängen wir es an.
         if !(url.hasSuffix("/api/tracks") || url.hasSuffix("/api/tracks/")) {
+            // Wenn baseUrl schon mit / endet, ohne extra Slash anhängen
             if url.hasSuffix("/") {
                 url += "api/tracks"
             } else {
                 url += "/api/tracks"
             }
         }
+
         return url
     }
 }
 
+// =====================================================
 // MARK: - Data convenience
+// =====================================================
 
-/// Kleine Helfer-Erweiterung, um String bequem an Data anzuhängen.
+/// Kleine Helfer-Erweiterung, um Strings bequem an `Data` anzuhängen.
 private extension Data {
+    /// Wandelt den String in UTF-8 um und hängt die Bytes an `Data` an.
     mutating func append(_ string: String) {
         if let d = string.data(using: .utf8) {
             append(d)

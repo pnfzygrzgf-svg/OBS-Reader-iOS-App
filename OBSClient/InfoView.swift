@@ -1,37 +1,57 @@
 // InfoView.swift
 import SwiftUI
 
+/// Info-Screen der App.
+/// Zeigt in Kartenform:
+/// - kurze Beschreibung der App
+/// - Credits / verwendete Projekte
+/// - Lizenzhinweise
 struct InfoView: View {
     var body: some View {
+        // Custom Wrapper:
+        // - gruppierter Hintergrund
+        // - Scrollbar
+        // - passende Insets/Spacing
         GroupedScrollScreen {
             VStack(alignment: .leading, spacing: 24) {
+                // 1) Was macht die App?
                 aboutAppCard
+
+                // 2) Danksagungen / externe Projekte
                 creditsCard
+
+                // 3) Lizenztexte / Hinweis auf Repo-Dateien
                 licenseCard
             }
-            .font(.obsBody)
+            .font(.obsBody) // Standard-Schriftstil für den gesamten Inhalt
         }
         .navigationTitle("Info")
         .navigationBarTitleDisplayMode(.inline)
     }
 
     // MARK: - Cards
+    // Die folgenden computed properties liefern jeweils eine "Karte" (Card View),
+    // die per obsCardStyle() optisch einheitlich formatiert wird.
 
+    /// Karte: App-Beschreibung + Link zur OBS-Webseite.
     private var aboutAppCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Über diese App")
                 .font(.obsScreenTitle)
 
+            // Mehrzeiliger Text: Was macht die App?
             Text("""
 Diese App zeichnet deine Fahrten und Überholabstände mit einem OpenBikeSensor auf.
 Sie hilft dabei, kritische Überholmanöver sichtbar zu machen und die Daten auszuwerten.
 """)
 
+            // Sicherer URL-Build:
+            // if-let verhindert einen Crash, falls die URL mal ungültig wäre.
             if let url = URL(string: "https://www.openbikesensor.org/device/") {
                 Link("Mehr zum OpenBikeSensor", destination: url)
                     .font(.obsFootnote.weight(.semibold))
             } else {
-                // Sollte nie passieren, verhindert aber Crashes bei kaputten URLs.
+                // Fallback: sollte nie passieren, ist aber crash-sicher.
                 Text("Mehr zum OpenBikeSensor (Link ungültig)")
                     .font(.obsFootnote.weight(.semibold))
                     .foregroundStyle(.secondary)
@@ -40,11 +60,13 @@ Sie hilft dabei, kritische Überholmanöver sichtbar zu machen und die Daten aus
         .obsCardStyle()
     }
 
+    /// Karte: Danksagungen / verwendete Projekte inkl. Links und Lizenzhinweisen.
     private var creditsCard: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Danksagungen & verwendete Projekte")
                 .font(.obsScreenTitle)
 
+            // --- Abschnitt: OpenBikeSensor Projekt ---
             VStack(alignment: .leading, spacing: 8) {
                 Text("OpenBikeSensor")
                     .font(.obsBody.weight(.bold))
@@ -62,8 +84,10 @@ Die Originalsoftware wird unter der GNU Lesser General Public License (LGPL-3.0)
 """)
             }
 
+            // Optische Trennung der Abschnitte
             Divider().padding(.vertical, 4)
 
+            // --- Abschnitt: Logo Repository / Lizenz ---
             VStack(alignment: .leading, spacing: 8) {
                 Text("OpenBikeSensor-Logo")
                     .font(.obsBody.weight(.bold))
@@ -85,6 +109,7 @@ eine Namensnennung und das Teilen unter derselben Lizenz erforderlich.
 
             Divider().padding(.vertical, 4)
 
+            // --- Abschnitt: SimRa Android App / Lizenz ---
             VStack(alignment: .leading, spacing: 8) {
                 Text("SimRa Android App")
                     .font(.obsBody.weight(.bold))
@@ -105,6 +130,7 @@ SimRa Android App. Diese steht unter der Apache License 2.0.
         .obsCardStyle()
     }
 
+    /// Karte: Lizenzhinweis für diese App + Verweis auf LICENSE/THIRD_PARTY_LICENSES im Repo.
     private var licenseCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Lizenz dieser App")
@@ -123,6 +149,7 @@ Lizenzen gelten (LGPL-3.0, CC BY-SA 4.0, Apache-2.0).
     }
 }
 
+// SwiftUI Preview für Xcode Canvas
 #Preview {
     NavigationStack {
         InfoView()

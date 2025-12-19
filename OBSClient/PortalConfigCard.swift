@@ -1,27 +1,60 @@
+// PortalConfigCard.swift
 import SwiftUI
 
-/// Gemeinsame Konfigurationskarte für OBS-Portal:
-/// - Basis-URL
-/// - API-Key
-///
-/// Nutzt @AppStorage("obsBaseUrl") und @AppStorage("obsApiKey"),
-/// d.h. Änderungen sind überall gültig (DataExportView, PortalTracksListView, …).
-struct PortalConfigCard: View {
+/// Konfigurationskarte für das OBS-Portal:
+/// - Portal-URL + API-Key erfassen
+/// - Werte werden erst nach Tippen auf „Speichern“ übernommen
+/// - Beispiel-URL erscheint nur als Placeholder (sekundäre Farbe)
+struct PortalConfigCardView: View {
 
-    @AppStorage("obsBaseUrl") private var obsBaseUrl: String = ""
-    @AppStorage("obsApiKey")  private var obsApiKey: String = ""
+    // Persistierte (gespeicherte) Werte
+    @AppStorage("obsBaseUrl") private var savedBaseUrl: String = ""
+    @AppStorage("obsApiKey")  private var savedApiKey: String = ""
 
-    private var isConfigured: Bool {
-        !obsBaseUrl.isEmpty && !obsApiKey.isEmpty
+    // Entwurfs-/Eingabewerte (werden erst mit "Speichern" übernommen)
+    @State private var draftBaseUrl: String = ""
+    @State private var draftApiKey: String = ""
+
+    // Kleine UI-Rückmeldung nach dem Speichern
+    @State private var showSavedHint: Bool = false
+
+    // Beispiel-URL nur als Placeholder (prompt), NICHT als initialer Text
+    private let exampleBaseUrl = "https://portal.openbikesensor.org/"
+
+    /// „Konfiguriert“ bezieht sich bewusst auf den *gespeicherten* Zustand.
+    private var isSavedConfigured: Bool {
+        !savedBaseUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !savedApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// Ob es ungespeicherte Änderungen gibt.
+    private var hasUnsavedChanges: Bool {
+        draftBaseUrl != savedBaseUrl || draftApiKey != savedApiKey
+    }
+
+    /// Grobe Validierung der Eingaben (für Button-Enablement).
+    private var isDraftValid: Bool {
+        let urlString = draftBaseUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+        let keyString = draftApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !urlString.isEmpty, !keyString.isEmpty else { return false }
+        guard let components = URLComponents(string: urlString),
+              let url = components.url,
+              !url.absoluteString.isEmpty
+        else { return false }
+
+        return true
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+
+            // Kopfzeile: zeigt Status des *gespeicherten* Zustands
             HStack(spacing: 8) {
-                Image(systemName: isConfigured
+                Image(systemName: isSavedConfigured
                       ? "checkmark.seal.fill"
                       : "exclamationmark.triangle.fill")
-                    .foregroundStyle(isConfigured ? .green : .orange)
+                    .foregroundStyle(isSavedConfigured ? .green : .orange)
 
                 Text("OBS-Portal")
                     .font(.obsScreenTitle)
@@ -29,48 +62,92 @@ struct PortalConfigCard: View {
                 Spacer()
             }
 
-            Text(isConfigured
+            // Status-Text (ebenfalls bezogen auf den gespeicherten Zustand)
+            Text(isSavedConfigured
                  ? "OBS-Portal ist bereit zum Hochladen."
                  : "OBS-Portal ist noch nicht vollständig eingerichtet.")
             .font(.obsCaption)
             .foregroundStyle(.secondary)
 
+            // Hinweis, wenn der User etwas geändert hat, aber noch nicht gespeichert
+            if hasUnsavedChanges {
+                Text("Änderungen noch nicht gespeichert.")
+                    .font(.obsCaption)
+                    .foregroundStyle(.orange)
+            }
+
+            // Portal-URL Eingabe
             VStack(alignment: .leading, spacing: 8) {
                 Text("Portal-URL")
                     .font(.obsFootnote)
                     .foregroundStyle(.secondary)
 
-                TextField("https://portal.openbikesensor.org/", text: $obsBaseUrl)
-                    .keyboardType(.URL)
-                    .textInputAutocapitalization(.never)
-                    .disableAutocorrection(true)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.obsBody)
+                TextField(
+                    "",
+                    text: $draftBaseUrl,
+                    prompt: Text(exampleBaseUrl)
+                        .foregroundStyle(.secondary) // <- nicht blau, sondern sekundär
+                )
+                .keyboardType(.URL)
+                .textInputAutocapitalization(.never)
+                .disableAutocorrection(true)
+                .textFieldStyle(.roundedBorder)
+                .font(.obsBody)
             }
 
+            // API-Key Eingabe
             VStack(alignment: .leading, spacing: 8) {
                 Text("API-Key")
                     .font(.obsFootnote)
                     .foregroundStyle(.secondary)
 
-                SecureField("API-Key eintragen", text: $obsApiKey)
+                SecureField("API-Key eintragen", text: $draftApiKey)
                     .textFieldStyle(.roundedBorder)
                     .font(.obsBody)
             }
 
-            if !isConfigured {
-                Text("Bitte Portal-URL und API-Key eintragen, um Fahrtaufzeichnungen direkt ins OBS-Portal hochzuladen.")
+            // Validierungs-/Hilfetext
+            if !isDraftValid {
+                Text("Bitte eine gültige Portal-URL und einen API-Key eintragen.")
+                    .font(.obsCaption)
+                    .foregroundStyle(.secondary)
+            }
+
+            // Speichern-Button + Feedback
+            HStack {
+                Spacer()
+
+                Button {
+                    save()
+                } label: {
+                    Label("Speichern", systemImage: "square.and.arrow.down")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!isDraftValid || !hasUnsavedChanges)
+            }
+
+            if showSavedHint {
+                Text("Gespeichert.")
                     .font(.obsCaption)
                     .foregroundStyle(.secondary)
             }
         }
         .obsCardStyle()
+        .onAppear {
+            // Draft-Werte beim Erscheinen mit den gespeicherten Werten initialisieren
+            draftBaseUrl = savedBaseUrl
+            draftApiKey  = savedApiKey
+        }
     }
-}
 
-#Preview {
-    ScrollView {
-        PortalConfigCard()
-            .padding()
+    /// Übernimmt Draft → AppStorage (persistiert) und zeigt kurz ein Feedback.
+    private func save() {
+        savedBaseUrl = draftBaseUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+        savedApiKey  = draftApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        showSavedHint = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            showSavedHint = false
+        }
     }
 }

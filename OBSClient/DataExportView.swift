@@ -9,9 +9,9 @@ import UniformTypeIdentifiers
 /// in `UserDefaults`, verknüpft über den Dateinamen (lastPathComponent).
 ///
 /// Warum so?
-/// - Die Auswertungsdaten sind “Meta-Infos” zur Datei.
-/// - Der Dateiname (lastPathComponent) dient als stabiler Schlüssel.
-/// - UserDefaults ist für kleine Key-Value Daten passend (nicht für die Rohdateien).
+/// - Die Auswertungsdaten sind “Meta-Infos” zur Datei (nicht Teil der CSV/BIN selbst).
+/// - Der Dateiname (lastPathComponent) ist ein stabiler Schlüssel für die Datei.
+/// - UserDefaults eignet sich für kleine Key-Value Daten (nicht für große Dateien).
 struct OvertakeStatsStore {
     /// Key für Dictionary: [Dateiname: Überholcount]
     private static let countsKey   = "obsOvertakeCounts"
@@ -20,11 +20,13 @@ struct OvertakeStatsStore {
     private static let distanceKey = "obsTrackDistanceMeters"
 
     /// Speichert (optional) Count/Distanz für eine bestimmte Datei.
-    /// - Es wird nur gespeichert, wenn Werte > 0 sind (nil/0 wird ignoriert).
+    /// - Nur Werte > 0 werden geschrieben (nil/0 wird ignoriert).
     static func store(count: Int?, distanceMeters: Double?, for url: URL) {
+        // Wir verwenden nur den Dateinamen als Schlüssel (ohne Pfad),
+        // damit es unabhängig davon bleibt, wo die Datei im Documents liegt.
         let fileKey = url.lastPathComponent
 
-        // Count speichern
+        // --- Count speichern ---
         if let count = count, count > 0 {
             // Dictionary aus UserDefaults lesen oder neu anlegen
             var dict = (UserDefaults.standard.dictionary(forKey: countsKey) as? [String: Int]) ?? [:]
@@ -32,7 +34,7 @@ struct OvertakeStatsStore {
             UserDefaults.standard.set(dict, forKey: countsKey)
         }
 
-        // Distanz speichern (in Metern)
+        // --- Distanz speichern (in Metern) ---
         if let meters = distanceMeters, meters > 0 {
             var dict = (UserDefaults.standard.dictionary(forKey: distanceKey) as? [String: Double]) ?? [:]
             dict[fileKey] = meters
@@ -62,32 +64,31 @@ struct OvertakeStatsStore {
 // MARK: - Model
 // =====================================================
 
-/// Metadaten zu einer OBS-Aufnahmedatei (.bin / .csv)
-/// Wird für die Liste angezeigt.
+/// Metadaten zu einer OBS-Aufnahmedatei (.bin / .csv), so wie sie in der Liste angezeigt wird.
 struct OBSFileInfo: Identifiable {
     /// Stable ID für SwiftUI Listen (hier: random UUID pro Reload).
-    /// Hinweis: Wenn du stabile IDs willst, könntest du url als id benutzen.
+    /// Hinweis: Wenn du wirklich stabile IDs über App-Starts brauchst, könntest du `url` als ID verwenden.
     let id = UUID()
 
-    /// Datei-URL im Documents-Ordner (oder Unterordner)
+    /// Datei-URL im Documents-Ordner (oder Unterordner).
     let url: URL
 
-    /// Anzeigename (typisch: Dateiname)
+    /// Anzeigename (typisch: Dateiname).
     let name: String
 
-    /// Formatierte Größe (z.B. "12.3 KB")
+    /// Formatierte Größe (z.B. "12.3 KB").
     let sizeDescription: String
 
-    /// Formatierte Änderungszeit (z.B. "14.12.25, 12:34")
+    /// Formatierte Änderungszeit (z.B. "14.12.25, 12:34").
     let dateDescription: String
 
-    /// Unformatierte Änderungszeit (für Sortierung)
+    /// Unformatierte Änderungszeit (für Sortierung).
     let modificationDate: Date?
 
-    /// Auswertung: Anzahl Überholvorgänge (optional)
+    /// Auswertung: Anzahl Überholvorgänge (optional).
     let overtakeCount: Int?
 
-    /// Auswertung: Distanz in km (optional)
+    /// Auswertung: Distanz in km (optional).
     let distanceKm: Double?
 }
 
@@ -97,10 +98,13 @@ struct ActivityView: UIViewControllerRepresentable {
     /// Items, die geteilt werden sollen (hier typischerweise: eine Datei-URL).
     let activityItems: [Any]
 
+    /// Erstellt den UIKit-Controller einmalig für das Share Sheet.
     func makeUIViewController(context: Context) -> UIActivityViewController {
         UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
     }
 
+    /// Wird von SwiftUI aufgerufen, wenn sich State ändert.
+    /// Hier kein Update nötig, weil das Share Sheet nicht dynamisch "weitergerendert" wird.
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {
         // Kein Live-Update nötig (Share Sheet ist “fire and forget”).
     }
@@ -113,7 +117,7 @@ struct ActivityView: UIViewControllerRepresentable {
 /// Listet aufgezeichnete OBS-Dateien aus dem Documents-Ordner
 /// und ermöglicht:
 /// - Teilen der Datei (Share Sheet)
-/// - Hochladen zum OBS-Portal
+/// - Hochladen zum OBS-Portal (via OBSUploader)
 /// - Löschen einzelner oder aller Dateien
 struct DataExportView: View {
 
@@ -121,28 +125,28 @@ struct DataExportView: View {
     // MARK: State
     // -------------------------------------------------
 
-    /// Geladene Dateien (wird bei onAppear/refreshable aktualisiert)
+    /// Geladene Dateien (wird bei onAppear/refreshable aktualisiert).
     @State private var files: [OBSFileInfo] = []
 
-    // Share Sheet State
+    /// Share Sheet State: zeigt UIActivityViewController als Sheet.
     @State private var isShowingShareSheet = false
     @State private var shareURL: URL?
 
-    // Portal-Konfiguration (persistiert per AppStorage)
-    // -> kommt aus einem anderen Screen/Settings-Bereich
+    /// Portal-Konfiguration (persistiert per AppStorage).
+    /// Kommt üblicherweise aus einem Settings-Screen.
     @AppStorage("obsBaseUrl") private var obsBaseUrl: String = ""
     @AppStorage("obsApiKey")  private var obsApiKey: String = ""
 
-    // Upload-Status / UI Feedback
+    /// Upload-Status / UI Feedback.
     @State private var isUploading: Bool = false
     @State private var uploadStatusMessage: String?
     @State private var isShowingUploadResultAlert: Bool = false
 
-    // Upload-Confirmation für einzelne Datei
+    /// Upload-Confirmation für einzelne Datei.
     @State private var isShowingUploadConfirm: Bool = false
     @State private var pendingUploadFile: OBSFileInfo?
 
-    // Delete-Confirmation (eine Datei oder alle)
+    /// Delete-Confirmation (eine Datei oder alle).
     @State private var isShowingDeleteConfirm: Bool = false
     @State private var pendingDeleteFile: OBSFileInfo?
 
@@ -157,19 +161,19 @@ struct DataExportView: View {
 
     var body: some View {
         ZStack {
-            // Hintergrund im iOS “grouped” Look
+            // Hintergrund im iOS “grouped” Look.
             Color(.systemGroupedBackground)
                 .ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 24) {
-                    // Hinweis-Karte, wenn Portal noch nicht konfiguriert ist
+                    // Hinweis-Karte, wenn Portal noch nicht konfiguriert ist.
                     if !portalConfigured {
                         portalHintCard
                             .obsCardStyle()
                     }
 
-                    // Liste der Dateien / Empty State
+                    // Sektion mit Liste der Dateien oder Empty State.
                     recordingsSection
                 }
                 .padding(.horizontal, 16)
@@ -179,11 +183,11 @@ struct DataExportView: View {
             }
             .scrollIndicators(.hidden)
             .refreshable {
-                // Pull-to-refresh lädt erneut vom Dateisystem
+                // Pull-to-refresh lädt die Dateien erneut vom Dateisystem.
                 loadFiles()
             }
 
-            // Upload-Overlay: kleines HUD am unteren Rand
+            // Upload-Overlay: kleines HUD am unteren Rand (solange Upload läuft).
             if isUploading {
                 VStack {
                     Spacer()
@@ -208,7 +212,7 @@ struct DataExportView: View {
             // Toolbar: “Alle löschen”
             ToolbarItem(placement: .topBarTrailing) {
                 Button(role: .destructive) {
-                    // Nur anzeigen, wenn überhaupt Dateien existieren
+                    // Confirmation nur anzeigen, wenn überhaupt Dateien existieren.
                     if !files.isEmpty {
                         pendingDeleteFile = nil   // nil => bedeutet “alle”
                         isShowingDeleteConfirm = true
@@ -222,24 +226,25 @@ struct DataExportView: View {
             }
         }
         .onAppear {
-            // Beim ersten Anzeigen laden wir die Dateien
+            // Beim ersten Anzeigen laden wir die Dateien.
             loadFiles()
         }
         .sheet(isPresented: $isShowingShareSheet) {
-            // Share Sheet wird präsentiert, wenn `shareURL` gesetzt ist
+            // Share Sheet wird präsentiert, wenn `shareURL` gesetzt ist.
             if let url = shareURL {
                 ActivityView(activityItems: [url])
             }
         }
-        // Upload Result Alert (Erfolg/Fehlertext)
+        // Upload Result Alert (Erfolg/Fehlertext).
         .alert("Upload", isPresented: $isShowingUploadResultAlert) {
             Button("OK", role: .cancel) { }
         } message: {
             Text(uploadStatusMessage ?? "Unbekannter Fehler")
         }
-        // Upload Confirmation Alert
+        // Upload Confirmation Alert (pro Datei).
         .alert("Upload bestätigen", isPresented: $isShowingUploadConfirm) {
             Button("Hochladen", role: .destructive) {
+                // Nur wenn eine Datei pending ist, starten wir den Upload.
                 if let file = pendingUploadFile {
                     upload(file)
                 }
@@ -255,10 +260,10 @@ struct DataExportView: View {
                 Text("Wirklich zum OBS-Portal hochladen?")
             }
         }
-        // Delete Confirmation Alert
+        // Delete Confirmation Alert (einzeln oder alle).
         .alert("Wirklich löschen?", isPresented: $isShowingDeleteConfirm) {
             Button("Löschen", role: .destructive) {
-                // pendingDeleteFile == nil bedeutet “alle”
+                // pendingDeleteFile == nil bedeutet “alle”.
                 if let file = pendingDeleteFile {
                     delete(file)
                 } else {
@@ -298,16 +303,18 @@ struct DataExportView: View {
         }
     }
 
-    /// Sektion mit Dateiliste oder Empty State
+    /// Sektion mit Dateiliste oder Empty State.
     private var recordingsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Dateien")
                 .font(.obsScreenTitle)
 
             if files.isEmpty {
+                // Kein Inhalt: „leerer Zustand“
                 emptyStateCard
                     .obsCardStyle()
             } else {
+                // Dateien vorhanden: jede Datei als eigene Karte/Zeile
                 VStack(spacing: 12) {
                     ForEach(files) { file in
                         fileRow(for: file)
@@ -318,7 +325,7 @@ struct DataExportView: View {
         }
     }
 
-    /// UI für “keine Dateien vorhanden”
+    /// UI für “keine Dateien vorhanden”.
     private var emptyStateCard: some View {
         VStack(spacing: 12) {
             Image(systemName: "doc.text.magnifyingglass")
@@ -337,7 +344,7 @@ struct DataExportView: View {
         .padding(.vertical, 8)
     }
 
-    /// Zeile/Karte für eine einzelne Datei inkl. Menü (Teilen/Hochladen/Löschen)
+    /// Zeile/Karte für eine einzelne Datei inkl. Menü (Teilen/Hochladen/Löschen).
     private func fileRow(for file: OBSFileInfo) -> some View {
         HStack(spacing: 12) {
             // Linke Seite: Dateiinformationen
@@ -371,13 +378,13 @@ struct DataExportView: View {
                     .foregroundStyle(.secondary)
                 }
             }
-            // Accessibility: eigenen, gut vorlesbaren String zusammenbauen
+            // Accessibility: eigener, gut vorlesbarer String (statt viele Einzel-Labels)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(accessibilityText(for: file))
 
             Spacer()
 
-            // Rechte Seite: Context-Menü
+            // Rechte Seite: Context-Menü (ellipsis)
             Menu {
                 // Teilen: kopiert Datei in temp und öffnet Share Sheet
                 Button {
@@ -408,10 +415,10 @@ struct DataExportView: View {
             }
             .buttonStyle(.borderless)
         }
-        // Ganze Karte tappable machen
+        // Ganze Karte tappable machen (nicht nur das Menü-Icon)
         .contentShape(Rectangle())
         .onTapGesture {
-            // Tap auf Karte: Upload bestätigen (Shortcut)
+            // Shortcut: Tap auf Karte => Upload bestätigen (wie ein „schneller Upload“)
             pendingUploadFile = file
             isShowingUploadConfirm = true
         }
@@ -427,7 +434,7 @@ struct DataExportView: View {
         let fm = FileManager.default
 
         do {
-            // Documents directory
+            // Documents directory (Sandbox der App)
             let docs = try fm.url(
                 for: .documentDirectory,
                 in: .userDomainMask,
@@ -442,7 +449,8 @@ struct DataExportView: View {
                 .contentModificationDateKey
             ]
 
-            // Rekursiver Enumerator über Documents (skipsHiddenFiles -> keine .DS_Store etc.)
+            // Rekursiver Enumerator über Documents
+            // options: .skipsHiddenFiles => ignoriert z.B. .DS_Store
             guard let enumerator = fm.enumerator(
                 at: docs,
                 includingPropertiesForKeys: keys,
@@ -452,7 +460,7 @@ struct DataExportView: View {
                 return
             }
 
-            // Formatierung für Anzeige
+            // Formatierung für Anzeige (lokalisiert)
             let formatter = DateFormatter()
             formatter.dateStyle = .short
             formatter.timeStyle = .short
@@ -466,6 +474,7 @@ struct DataExportView: View {
 
                 do {
                     let values = try url.resourceValues(forKeys: Set(keys))
+                    // Nur echte Dateien, keine Ordner/Symlinks
                     guard values.isRegularFile == true else { continue }
 
                     // Größe & Änderungsdatum lesen
@@ -512,7 +521,7 @@ struct DataExportView: View {
     }
 
     /// Bereitet “Teilen” vor:
-    /// - kopiert Datei in temporäres Verzeichnis (damit z.B. Security/Permissions sauber sind)
+    /// - kopiert Datei in temporäres Verzeichnis (häufig kompatibler für Share Sheet)
     /// - zeigt Share Sheet mit dieser Temp-URL
     private func share(_ file: OBSFileInfo) {
         let fm = FileManager.default
@@ -539,13 +548,16 @@ struct DataExportView: View {
 
     /// Startet Upload einer Datei zum OBS-Portal (async/await).
     /// - Zeigt währenddessen “Upload läuft…” Overlay.
+    /// - Ergebnis wird als Alert angezeigt.
     private func upload(_ file: OBSFileInfo) {
+        // Schutz: ohne Konfiguration kein Upload möglich
         guard portalConfigured else {
             uploadStatusMessage = "Bitte im Portal-Bereich Portal-URL und API-Key eintragen."
             isShowingUploadResultAlert = true
             return
         }
 
+        // UI: Upload HUD anzeigen
         isUploading = true
 
         // Task: async Upload ohne UI zu blockieren

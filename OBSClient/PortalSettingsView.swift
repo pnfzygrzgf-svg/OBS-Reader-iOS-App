@@ -1,5 +1,4 @@
 // PortalSettingsView.swift
-
 import SwiftUI
 
 /// Seite für Portal-Einstellungen:
@@ -14,7 +13,13 @@ struct PortalSettingsView: View {
 
             ScrollView {
                 VStack(spacing: 24) {
-                    PortalConfigCard()
+
+                    // ✅ Konfigurationskarte (URL + API-Key + Speichern)
+                    // Wichtig: hier wird die umbenannte View verwendet:
+                    // PortalConfigCardView statt PortalConfigCard
+                    PortalConfigCardView()
+
+                    // ✅ Info-Karte zum Login
                     loginInfoCard
                 }
                 .padding(.horizontal, 16)
@@ -24,6 +29,7 @@ struct PortalSettingsView: View {
             .scrollIndicators(.hidden)
         }
         .navigationTitle("Portal-Einstellungen")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     /// Karte, die kurz erklärt, wie der Login im Portal funktioniert.
@@ -35,7 +41,7 @@ struct PortalSettingsView: View {
             Text("""
 Um deine Fahrten aus dem OBS-Portal in dieser App zu sehen:
 
-1. Stelle hier Portal-URL und API-Key ein.
+1. Stelle hier Portal-URL und API-Key ein und tippe auf „Speichern“.
 2. Öffne im Tab „Aufzeichnungen“ den Bereich „Meine Portal-Tracks“.
 3. Tippe dort oben rechts auf „Login“.
 
