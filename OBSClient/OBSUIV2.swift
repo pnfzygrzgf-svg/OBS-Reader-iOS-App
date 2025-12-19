@@ -4,33 +4,72 @@ import SwiftUI
 import Foundation
 
 // =====================================================
+// MARK: - Theme Colors (V2) – redeclaration-sicher
+// =====================================================
+
+/// Zentrale Theme-Farben aus Assets.
+/// Vorteil: Keine Kollisionen mit evtl. vorhandenen `extension Color` Properties.
+enum OBSThemeV2 {
+    static let accent = Color("OBSAccent")
+
+    static let card = Color("OBSCard")
+    static let cardBorder = Color("OBSCardBorder")
+
+    static let good = Color("OBSGood")
+    static let warn = Color("OBSWarn")
+    static let danger = Color("OBSDanger")
+}
+
+/// Optional: V2-Properties, damit du kurz schreiben kannst (`.obsAccentV2`)
+/// Diese Namen sind bewusst neu (V2-Suffix), damit es garantiert nicht kollidiert.
+extension Color {
+    static var obsAccentV2: Color { OBSThemeV2.accent }
+    static var obsCardV2: Color { OBSThemeV2.card }
+    static var obsCardBorderV2: Color { OBSThemeV2.cardBorder }
+    static var obsGoodV2: Color { OBSThemeV2.good }
+    static var obsWarnV2: Color { OBSThemeV2.warn }
+    static var obsDangerV2: Color { OBSThemeV2.danger }
+
+    /// App-spezifische Farblogik (Überholabstand) – nutzt Theme-Farben
+    static func obsOvertakeColorV2(for distance: Int) -> Color {
+        switch distance {
+        case ..<100:      return .obsDangerV2
+        case 100..<150:   return .obsWarnV2
+        default:          return .obsGoodV2
+        }
+    }
+}
+
+// =====================================================
 // MARK: - Card Style V2
 // =====================================================
 
-/// Einheitlicher "Card"-Look (V2) – absichtlich neu benannt,
-/// damit es keine Kollisionen mit vorhandenen Styles gibt.
+/// Einheitlicher "Card"-Look (V2) – Performance-freundlich
+///
+/// WICHTIG:
+/// `.overlay(...)` und `.background(...)` können sonst Touches "wegfangen",
+/// wodurch Buttons/NavigationLinks innerhalb der Card nicht mehr klickbar sind.
+/// Daher: `allowsHitTesting(false)` für Deko-Layer.
 struct OBSCardStyleV2: ViewModifier {
 
-    /// OPTIK:
-    /// - iOS "Inset Grouped" Look
-    /// - Dezenter Stroke + sehr leichter Shadow
     func body(content: Content) -> some View {
         content
             .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                    .fill(Color.obsCardV2)
+                    .allowsHitTesting(false) // ✅ verhindert Tap-Blocking
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color(.separator).opacity(0.35), lineWidth: 1)
+                    .stroke(Color.obsCardBorderV2.opacity(0.75), lineWidth: 1)
+                    .allowsHitTesting(false) // ✅ verhindert Tap-Blocking
             )
-            .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
+            .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
     }
 }
 
 extension View {
-    /// V2-Variante, damit es nicht mit `obsCardStyle()` kollidiert.
     func obsCardStyleV2() -> some View {
         modifier(OBSCardStyleV2())
     }
@@ -40,13 +79,10 @@ extension View {
 // MARK: - Grouped Scroll Screen V2
 // =====================================================
 
-/// Wrapper im iOS-"Grouped" Look (V2), neu benannt gegen Kollisionen.
 struct GroupedScrollScreenV2<Content: View>: View {
 
-    /// Der Inhalt, der innerhalb des ScrollView gerendert wird.
     private let content: Content
 
-    /// Initializer mit ViewBuilder.
     init(@ViewBuilder content: () -> Content) {
         self.content = content()
     }
@@ -72,8 +108,6 @@ struct GroupedScrollScreenV2<Content: View>: View {
 // MARK: - Components V2
 // =====================================================
 
-/// Section-Header (V2), neu benannt gegen Kollisionen.
-/// Wichtig: nur EIN init -> keine "ambiguous init" Fehler.
 struct OBSSectionHeaderV2: View {
     let title: String
     let subtitle: String?
@@ -98,25 +132,27 @@ struct OBSSectionHeaderV2: View {
     }
 }
 
-/// Status-Chip (V2) – neu benannt gegen Kollisionen.
 struct OBSStatusChipV2: View {
     enum Style {
         case success
         case warning
+        case danger
         case neutral
 
         var foreground: Color {
             switch self {
-            case .success: return .green
-            case .warning: return .orange
+            case .success: return .obsGoodV2
+            case .warning: return .obsWarnV2
+            case .danger:  return .obsDangerV2
             case .neutral: return .secondary
             }
         }
 
         var background: Color {
             switch self {
-            case .success: return Color.green.opacity(0.15)
-            case .warning: return Color.orange.opacity(0.15)
+            case .success: return Color.obsGoodV2.opacity(0.15)
+            case .warning: return Color.obsWarnV2.opacity(0.15)
+            case .danger:  return Color.obsDangerV2.opacity(0.15)
             case .neutral: return Color.secondary.opacity(0.12)
             }
         }
@@ -138,7 +174,6 @@ struct OBSStatusChipV2: View {
     }
 }
 
-/// Navigations-Kachel/Row (V2) – neu benannt gegen Kollisionen.
 struct OBSRowCardV2: View {
     let icon: String
     let title: String
@@ -182,7 +217,6 @@ struct OBSRowCardV2: View {
 // MARK: - Distance Formatter V2
 // =====================================================
 
-/// DistanceFormatter (V2) – neu benannt gegen Kollisionen.
 enum OBSDistanceFormatterV2 {
     static func kmString(fromMeters meters: Double) -> String {
         let km = meters / 1000.0
@@ -196,27 +230,10 @@ enum OBSDistanceFormatterV2 {
 
 extension Optional where Wrapped == String {
 
-    /// V2-Variante gegen Kollisionen mit evtl. vorhandenen Helpers.
     var obsNonEmptyOrDashV2: String {
         guard let s = self,
               !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { return "-" }
         return s
-    }
-}
-
-// =====================================================
-// MARK: - Colors V2
-// =====================================================
-
-extension Color {
-
-    /// V2-Variante gegen Kollisionen mit evtl. vorhandenen Color-Extensions.
-    static func obsOvertakeColorV2(for distance: Int) -> Color {
-        switch distance {
-        case ..<100:      return .red
-        case 100..<150:   return .orange
-        default:          return .green
-        }
     }
 }

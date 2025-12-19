@@ -70,6 +70,7 @@ struct OBSClientApp: App {
 
                         .tabItem {
                             Label("Sensor", systemImage: "dot.radiowaves.left.and.right")
+                        
                         }
 
                     // -------------------------------------------------
@@ -83,6 +84,8 @@ struct OBSClientApp: App {
                         Label("Aufzeichnungen", systemImage: "tray.full")
                     }
                 }
+                
+                .tint(.obsAccentV2)
 
                 // -------------------------------------------------
                 // Splash-Screen (liegt über Tabs)

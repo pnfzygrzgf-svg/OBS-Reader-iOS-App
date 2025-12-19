@@ -1,3 +1,5 @@
+// ContentView.swift
+
 import SwiftUI
 import UIKit
 
@@ -21,67 +23,73 @@ struct ContentView: View {
     /// Cancelbarer Task für den Toast-Timer.
     @State private var toastTask: Task<Void, Never>?
 
+    /// Steuert, ob die Info-Ansicht als Sheet angezeigt wird.
+    @State private var showingInfo = false
+
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color(.systemGroupedBackground)
-                    .ignoresSafeArea()
+        ZStack {
+            Color(.systemGroupedBackground)
+                .ignoresSafeArea()
 
-                ScrollView(.vertical) {
-                    VStack(spacing: 24) {
-                        LogoView()
-                        DeviceTypeSelectionCard()
-                        ConnectionStatusCard()
-
-                        if !bt.isPoweredOn || !bt.hasBluetoothPermission {
-                            BluetoothPermissionHintView()
-                        }
-
-                        MeasurementsCardView(showSideDistances: $showSideDistances)
-                        HandlebarWidthView(handlebarWidthCm: $bt.handlebarWidthCm)
-
-                        if !bt.isLocationEnabled || !bt.hasLocationAlwaysPermission {
-                            LocationPermissionHintView()
-                        }
+            ScrollView(.vertical) {
+                VStack(spacing: 24) {
+                    LogoView {
+                        showingInfo = true
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 80)
-                    .font(.obsBody)
-                }
-                .scrollIndicators(.hidden)
-                .scrollDismissesKeyboard(.immediately)
+                    DeviceTypeSelectionCard()
+                    ConnectionStatusCard()
 
-                if showSaveConfirmation {
-                    SaveConfirmationToast(
-                        overtakeCount: bt.currentOvertakeCount,
-                        distanceText: OBSDistanceFormatterV2.kmString(fromMeters: bt.currentDistanceMeters)
-                    )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    if !bt.isPoweredOn || !bt.hasBluetoothPermission {
+                        BluetoothPermissionHintView()
+                    }
+
+                    MeasurementsCardView(showSideDistances: $showSideDistances)
+                    HandlebarWidthView(handlebarWidthCm: $bt.handlebarWidthCm)
+
+                    if !bt.isLocationEnabled || !bt.hasLocationAlwaysPermission {
+                        LocationPermissionHintView()
+                    }
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 80)
+                .font(.obsBody)
             }
-            .navigationTitle("OBS Recorder")
-            .navigationBarTitleDisplayMode(.inline)
+            .scrollIndicators(.hidden)
+            .scrollDismissesKeyboard(.immediately)
 
-            // ✅ WICHTIG: toolbar() ist bei dir offenbar kollidiert.
-            // Deshalb nutzen wir navigationBarItems statt toolbar.
-            .navigationBarItems(trailing:
-                NavigationLink(destination: InfoView()) {
-                    Image(systemName: "info.circle")
-                }
-            )
-
-            .safeAreaInset(edge: .bottom) {
-                RecordButtonView(
-                    isConnected: bt.isConnected,
-                    isRecording: bt.isRecording,
-                    onTap: handleRecordTap
+            if showSaveConfirmation {
+                SaveConfirmationToast(
+                    overtakeCount: bt.currentOvertakeCount,
+                    distanceText: OBSDistanceFormatterV2.kmString(fromMeters: bt.currentDistanceMeters)
                 )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            .onDisappear {
-                toastTask?.cancel()
-                toastTask = nil
+        }
+
+        // ✅ Navigation-Titel gehört hierhin (NavigationStack ist im App-Root pro Tab)
+        .navigationTitle("OBS Recorder")
+        .navigationBarTitleDisplayMode(.inline)
+
+        // ✅ InfoView als Sheet ist zuverlässig klickbar (auch in Cards/ScrollViews)
+        .sheet(isPresented: $showingInfo) {
+            NavigationStack {
+                InfoView()
+                    .navigationTitle("Info")
+                    .navigationBarTitleDisplayMode(.inline)
             }
+        }
+
+        .safeAreaInset(edge: .bottom) {
+            RecordButtonView(
+                isConnected: bt.isConnected,
+                isRecording: bt.isRecording,
+                onTap: handleRecordTap
+            )
+        }
+        .onDisappear {
+            toastTask?.cancel()
+            toastTask = nil
         }
     }
 
@@ -122,13 +130,44 @@ struct ContentView: View {
 // MARK: - Logo
 
 struct LogoView: View {
+
+    /// Callback, damit ContentView entscheidet, wie Info angezeigt wird (Sheet).
+    let onInfoTap: () -> Void
+
     var body: some View {
-        Image("OBSLogo")
-            .resizable()
-            .scaledToFit()
-            .frame(width: 64, height: 64)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.top, 4)
+        HStack(spacing: 12) {
+            Image("OBSLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 44, height: 44)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("OBS Recorder")
+                    .font(.obsSectionTitle)
+
+               
+            }
+
+            Spacer()
+
+            // Info-Button sitzt jetzt im Header (passt optisch besser)
+            //  Als „Chip“ wirkt es ruhiger als Icon im Kreis.
+            //  Button + Sheet ist robuster als NavigationLink in Card/ScrollView.
+            Button(action: onInfoTap) {
+                Label("Info", systemImage: "info.circle")
+                    .font(.obsFootnote.weight(.semibold))
+                    .foregroundStyle(Color.obsAccentV2) // oder .tint greift auch
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule().fill(Color(.secondarySystemFill))
+                    )
+                    .contentShape(Capsule()) //  Tap-Fläche exakt wie Capsule
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Info")
+        }
+        .obsCardStyleV2()
     }
 }
 
@@ -168,7 +207,7 @@ struct ConnectionStatusPresentation {
     init(bt: BluetoothManager) {
         if bt.isConnected {
             title = "Mit OBS verbunden"
-            color = .green
+            color = .obsGoodV2
 
             let detected = bt.detectedDeviceType?.displayName ?? "unbekannt"
             let mfg = bt.manufacturerName.obsNonEmptyOrDashV2
@@ -187,20 +226,20 @@ struct ConnectionStatusPresentation {
         if !bt.isPoweredOn {
             title = "Bluetooth deaktiviert"
             subtitle = "Aktiviere Bluetooth, um den Sensor zu verbinden."
-            color = .red
+            color = .obsDangerV2
             return
         }
 
         if !bt.hasBluetoothPermission {
             title = "Bluetooth-Zugriff erforderlich"
             subtitle = "Erlaube Bluetooth-Zugriff in den iOS-Einstellungen."
-            color = .red
+            color = .obsDangerV2
             return
         }
 
         title = "Nicht verbunden"
         subtitle = "Warten auf Sensorverbindung."
-        color = .orange
+        color = .obsWarnV2
     }
 }
 
@@ -241,7 +280,7 @@ struct LocationPermissionHintView: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "location.fill")
                 .font(.title3)
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.obsAccentV2)
 
             VStack(alignment: .leading, spacing: 8) {
                 Text(title)
@@ -299,7 +338,7 @@ struct BluetoothPermissionHintView: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "dot.radiowaves.left.and.right")
                 .font(.title3)
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.obsAccentV2)
 
             VStack(alignment: .leading, spacing: 8) {
                 Text(title)
@@ -609,8 +648,8 @@ struct RecordButtonView: View {
             .background(
                 LinearGradient(
                     colors: isRecording
-                        ? [Color.red.opacity(0.9), Color.red]
-                        : [Color.green.opacity(0.9), Color.green],
+                        ? [Color.obsDangerV2.opacity(0.95), Color.obsDangerV2]
+                        : [Color.obsAccentV2.opacity(0.95), Color.obsAccentV2],
                     startPoint: .leading,
                     endPoint: .trailing
                 )
@@ -655,3 +694,4 @@ struct SaveConfirmationToast: View {
         }
     }
 }
+
