@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "OBS-Logo-black-recorder.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

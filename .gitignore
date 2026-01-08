@@ -1,0 +1,41 @@
+########################
+# macOS
+########################
+.DS_Store
+
+########################
+# Xcode: User-spezifische Daten
+########################
+xcuserdata/
+*.xcuserdatad
+*.xcuserstate
+
+# Historische Xcode-Settings-Dateien
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+
+########################
+# Xcode: Build-Output
+########################
+build/
+DerivedData/
+
+########################
+# Swift Package Manager
+########################
+.build/
+
+########################
+# Carthage (falls du es später nutzt)
+########################
+Carthage/Build/
+
+########################
+# Fastlane (falls du es später nutzt)
+########################
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/

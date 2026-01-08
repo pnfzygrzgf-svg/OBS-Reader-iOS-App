@@ -1,0 +1,774 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B303A6552EE36891002D4887 /* SwiftProtobuf in Frameworks */ = {isa = PBXBuildFile; productRef = B303A6542EE36891002D4887 /* SwiftProtobuf */; };
+		B303A6572EE36891002D4887 /* SwiftProtobufPluginLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = B303A6562EE36891002D4887 /* SwiftProtobufPluginLibrary */; };
+		B34228A62EF6E030002DD5C5 /* openbikesensor.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = B34228A52EF6E030002DD5C5 /* openbikesensor.pb.swift */; };
+		B36EDEAF2EF5A058004ADAB0 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B36EDEAE2EF5A058004ADAB0 /* WidgetKit.framework */; };
+		B36EDEB12EF5A058004ADAB0 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B36EDEB02EF5A058004ADAB0 /* SwiftUI.framework */; };
+		B36EDEC22EF5A059004ADAB0 /* OBSWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B36EDEAC2EF5A058004ADAB0 /* OBSWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B38679602EF6E2E0005A6667 /* PortalTrackMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BFB2EF6DD4F0005E713 /* PortalTrackMapView.swift */; };
+		B38679612EF6E31D005A6667 /* PortalTracksListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BFC2EF6DD4F0005E713 /* PortalTracksListView.swift */; };
+		B38679622EF6E324005A6667 /* PortalTrackDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BFA2EF6DD4F0005E713 /* PortalTrackDetailView.swift */; };
+		B38679632EF6E329005A6667 /* PortalSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BF92EF6DD4F0005E713 /* PortalSettingsView.swift */; };
+		B38679642EF6E32E005A6667 /* PortalLoginWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BF82EF6DD4F0005E713 /* PortalLoginWebView.swift */; };
+		B38679652EF6E334005A6667 /* PortalLoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BF72EF6DD4F0005E713 /* PortalLoginView.swift */; };
+		B38679662EF6E339005A6667 /* PortalHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BF62EF6DD4F0005E713 /* PortalHomeView.swift */; };
+		B38679672EF6E341005A6667 /* PortalConfigCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BF52EF6DD4F0005E713 /* PortalConfigCard.swift */; };
+		B38679682EF6E346005A6667 /* PortalApiClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BF42EF6DD4F0005E713 /* PortalApiClient.swift */; };
+		B38679692EF6E34C005A6667 /* CookieSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BF32EF6DD4F0005E713 /* CookieSync.swift */; };
+		B3898BE12EF6DCF30005E713 /* COBS.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BDF2EF6DCF30005E713 /* COBS.swift */; };
+		B3898BE22EF6DCF30005E713 /* LossyDecoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BE02EF6DCF30005E713 /* LossyDecoding.swift */; };
+		B3898BE72EF6DD330005E713 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BE32EF6DD330005E713 /* Haptics.swift */; };
+		B3898BE82EF6DD330005E713 /* OBSFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BE42EF6DD330005E713 /* OBSFont.swift */; };
+		B3898BE92EF6DD330005E713 /* OBSUIV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BE52EF6DD330005E713 /* OBSUIV2.swift */; };
+		B3898BEA2EF6DD330005E713 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BE62EF6DD330005E713 /* SplashView.swift */; };
+		B3898BEF2EF6DD410005E713 /* BluetoothManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BEB2EF6DD410005E713 /* BluetoothManager.swift */; };
+		B3898BF02EF6DD410005E713 /* OBSUploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BEE2EF6DD410005E713 /* OBSUploader.swift */; };
+		B3898BF12EF6DD410005E713 /* LiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BEC2EF6DD410005E713 /* LiveActivityManager.swift */; };
+		B3898BF22EF6DD410005E713 /* LocationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BED2EF6DD410005E713 /* LocationManager.swift */; };
+		B3898BFE2EF6DD5A0005E713 /* MapHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BFD2EF6DD5A0005E713 /* MapHomeView.swift */; };
+		B3898C052EF6DD660005E713 /* LiteBinRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898C032EF6DD660005E713 /* LiteBinRecorder.swift */; };
+		B3898C062EF6DD660005E713 /* ClassicCsvRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898BFF2EF6DD660005E713 /* ClassicCsvRecorder.swift */; };
+		B3898C072EF6DD660005E713 /* InfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898C022EF6DD660005E713 /* InfoView.swift */; };
+		B3898C082EF6DD660005E713 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898C002EF6DD660005E713 /* ContentView.swift */; };
+		B3898C092EF6DD660005E713 /* OBSFileWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898C042EF6DD660005E713 /* OBSFileWriter.swift */; };
+		B3898C0A2EF6DD660005E713 /* DataExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898C012EF6DD660005E713 /* DataExportView.swift */; };
+		B3898C0E2EF6DD7B0005E713 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B3898C0B2EF6DD7B0005E713 /* Assets.xcassets */; };
+		B3898C102EF6DD7B0005E713 /* OBSClientApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898C0D2EF6DD7B0005E713 /* OBSClientApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		B36EDEC02EF5A059004ADAB0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B303A6152EE33724002D4887 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B36EDEAB2EF5A058004ADAB0;
+			remoteInfo = OBSWidgetsExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		B36EDEC72EF5A059004ADAB0 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B36EDEC22EF5A059004ADAB0 /* OBSWidgetsExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		B303A61D2EE33724002D4887 /* OBSClient.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OBSClient.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B34228A52EF6E030002DD5C5 /* openbikesensor.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = openbikesensor.pb.swift; sourceTree = "<group>"; };
+		B36EDEAC2EF5A058004ADAB0 /* OBSWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = OBSWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B36EDEAE2EF5A058004ADAB0 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		B36EDEB02EF5A058004ADAB0 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		B3898BDF2EF6DCF30005E713 /* COBS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = COBS.swift; sourceTree = "<group>"; };
+		B3898BE02EF6DCF30005E713 /* LossyDecoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LossyDecoding.swift; sourceTree = "<group>"; };
+		B3898BE32EF6DD330005E713 /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
+		B3898BE42EF6DD330005E713 /* OBSFont.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OBSFont.swift; sourceTree = "<group>"; };
+		B3898BE52EF6DD330005E713 /* OBSUIV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OBSUIV2.swift; sourceTree = "<group>"; };
+		B3898BE62EF6DD330005E713 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
+		B3898BEB2EF6DD410005E713 /* BluetoothManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothManager.swift; sourceTree = "<group>"; };
+		B3898BEC2EF6DD410005E713 /* LiveActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityManager.swift; sourceTree = "<group>"; };
+		B3898BED2EF6DD410005E713 /* LocationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationManager.swift; sourceTree = "<group>"; };
+		B3898BEE2EF6DD410005E713 /* OBSUploader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OBSUploader.swift; sourceTree = "<group>"; };
+		B3898BF32EF6DD4F0005E713 /* CookieSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CookieSync.swift; sourceTree = "<group>"; };
+		B3898BF42EF6DD4F0005E713 /* PortalApiClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalApiClient.swift; sourceTree = "<group>"; };
+		B3898BF52EF6DD4F0005E713 /* PortalConfigCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalConfigCard.swift; sourceTree = "<group>"; };
+		B3898BF62EF6DD4F0005E713 /* PortalHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalHomeView.swift; sourceTree = "<group>"; };
+		B3898BF72EF6DD4F0005E713 /* PortalLoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalLoginView.swift; sourceTree = "<group>"; };
+		B3898BF82EF6DD4F0005E713 /* PortalLoginWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalLoginWebView.swift; sourceTree = "<group>"; };
+		B3898BF92EF6DD4F0005E713 /* PortalSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalSettingsView.swift; sourceTree = "<group>"; };
+		B3898BFA2EF6DD4F0005E713 /* PortalTrackDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalTrackDetailView.swift; sourceTree = "<group>"; };
+		B3898BFB2EF6DD4F0005E713 /* PortalTrackMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalTrackMapView.swift; sourceTree = "<group>"; };
+		B3898BFC2EF6DD4F0005E713 /* PortalTracksListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortalTracksListView.swift; sourceTree = "<group>"; };
+		B3898BFD2EF6DD5A0005E713 /* MapHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapHomeView.swift; sourceTree = "<group>"; };
+		B3898BFF2EF6DD660005E713 /* ClassicCsvRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassicCsvRecorder.swift; sourceTree = "<group>"; };
+		B3898C002EF6DD660005E713 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		B3898C012EF6DD660005E713 /* DataExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataExportView.swift; sourceTree = "<group>"; };
+		B3898C022EF6DD660005E713 /* InfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoView.swift; sourceTree = "<group>"; };
+		B3898C032EF6DD660005E713 /* LiteBinRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiteBinRecorder.swift; sourceTree = "<group>"; };
+		B3898C042EF6DD660005E713 /* OBSFileWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OBSFileWriter.swift; sourceTree = "<group>"; };
+		B3898C0B2EF6DD7B0005E713 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B3898C0C2EF6DD7B0005E713 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B3898C0D2EF6DD7B0005E713 /* OBSClientApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OBSClientApp.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		B36EDEC62EF5A059004ADAB0 /* Exceptions for "OBSWidgets" folder in "OBSWidgetsExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = B36EDEAB2EF5A058004ADAB0 /* OBSWidgetsExtension */;
+		};
+		B386795F2EF6E27E005A6667 /* Exceptions for "OBSWidgets" folder in "OBSClient" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				OvertakeActivityAttributes.swift,
+			);
+			target = B303A61C2EE33724002D4887 /* OBSClient */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		B36EDEB22EF5A058004ADAB0 /* OBSWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				B386795F2EF6E27E005A6667 /* Exceptions for "OBSWidgets" folder in "OBSClient" target */,
+				B36EDEC62EF5A059004ADAB0 /* Exceptions for "OBSWidgets" folder in "OBSWidgetsExtension" target */,
+			);
+			path = OBSWidgets;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		B303A61A2EE33724002D4887 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B303A6572EE36891002D4887 /* SwiftProtobufPluginLibrary in Frameworks */,
+				B303A6552EE36891002D4887 /* SwiftProtobuf in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B36EDEA92EF5A058004ADAB0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B36EDEB12EF5A058004ADAB0 /* SwiftUI.framework in Frameworks */,
+				B36EDEAF2EF5A058004ADAB0 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		B303A6142EE33724002D4887 = {
+			isa = PBXGroup;
+			children = (
+				B34228A42EF6E019002DD5C5 /* GeneratedFiles */,
+				B3C6D5782EF6D868009167D6 /* Utils */,
+				B3C6D5772EF6D860009167D6 /* UI */,
+				B3C6D5762EF6D856009167D6 /* Services */,
+				B3C6D5752EF6D84D009167D6 /* Portal */,
+				B3C6D5742EF6D844009167D6 /* Map */,
+				B3C6D5732EF6D828009167D6 /* Features */,
+				B3C6D5722EF6D820009167D6 /* App */,
+				B36EDEB22EF5A058004ADAB0 /* OBSWidgets */,
+				B36EDEAD2EF5A058004ADAB0 /* Frameworks */,
+				B303A61E2EE33724002D4887 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		B303A61E2EE33724002D4887 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B303A61D2EE33724002D4887 /* OBSClient.app */,
+				B36EDEAC2EF5A058004ADAB0 /* OBSWidgetsExtension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		B34228A42EF6E019002DD5C5 /* GeneratedFiles */ = {
+			isa = PBXGroup;
+			children = (
+				B34228A52EF6E030002DD5C5 /* openbikesensor.pb.swift */,
+			);
+			path = GeneratedFiles;
+			sourceTree = "<group>";
+		};
+		B36EDEAD2EF5A058004ADAB0 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				B36EDEAE2EF5A058004ADAB0 /* WidgetKit.framework */,
+				B36EDEB02EF5A058004ADAB0 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		B3C6D5722EF6D820009167D6 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B3898C0B2EF6DD7B0005E713 /* Assets.xcassets */,
+				B3898C0C2EF6DD7B0005E713 /* Info.plist */,
+				B3898C0D2EF6DD7B0005E713 /* OBSClientApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		B3C6D5732EF6D828009167D6 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				B3898BFF2EF6DD660005E713 /* ClassicCsvRecorder.swift */,
+				B3898C002EF6DD660005E713 /* ContentView.swift */,
+				B3898C012EF6DD660005E713 /* DataExportView.swift */,
+				B3898C022EF6DD660005E713 /* InfoView.swift */,
+				B3898C032EF6DD660005E713 /* LiteBinRecorder.swift */,
+				B3898C042EF6DD660005E713 /* OBSFileWriter.swift */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		B3C6D5742EF6D844009167D6 /* Map */ = {
+			isa = PBXGroup;
+			children = (
+				B3898BFD2EF6DD5A0005E713 /* MapHomeView.swift */,
+			);
+			path = Map;
+			sourceTree = "<group>";
+		};
+		B3C6D5752EF6D84D009167D6 /* Portal */ = {
+			isa = PBXGroup;
+			children = (
+				B3898BF32EF6DD4F0005E713 /* CookieSync.swift */,
+				B3898BF42EF6DD4F0005E713 /* PortalApiClient.swift */,
+				B3898BF52EF6DD4F0005E713 /* PortalConfigCard.swift */,
+				B3898BF62EF6DD4F0005E713 /* PortalHomeView.swift */,
+				B3898BF72EF6DD4F0005E713 /* PortalLoginView.swift */,
+				B3898BF82EF6DD4F0005E713 /* PortalLoginWebView.swift */,
+				B3898BF92EF6DD4F0005E713 /* PortalSettingsView.swift */,
+				B3898BFA2EF6DD4F0005E713 /* PortalTrackDetailView.swift */,
+				B3898BFB2EF6DD4F0005E713 /* PortalTrackMapView.swift */,
+				B3898BFC2EF6DD4F0005E713 /* PortalTracksListView.swift */,
+			);
+			path = Portal;
+			sourceTree = "<group>";
+		};
+		B3C6D5762EF6D856009167D6 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				B3898BEB2EF6DD410005E713 /* BluetoothManager.swift */,
+				B3898BEC2EF6DD410005E713 /* LiveActivityManager.swift */,
+				B3898BED2EF6DD410005E713 /* LocationManager.swift */,
+				B3898BEE2EF6DD410005E713 /* OBSUploader.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		B3C6D5772EF6D860009167D6 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				B3898BE32EF6DD330005E713 /* Haptics.swift */,
+				B3898BE42EF6DD330005E713 /* OBSFont.swift */,
+				B3898BE52EF6DD330005E713 /* OBSUIV2.swift */,
+				B3898BE62EF6DD330005E713 /* SplashView.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		B3C6D5782EF6D868009167D6 /* Utils */ = {
+			isa = PBXGroup;
+			children = (
+				B3898BDF2EF6DCF30005E713 /* COBS.swift */,
+				B3898BE02EF6DCF30005E713 /* LossyDecoding.swift */,
+			);
+			path = Utils;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		B303A61C2EE33724002D4887 /* OBSClient */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B303A6282EE33725002D4887 /* Build configuration list for PBXNativeTarget "OBSClient" */;
+			buildPhases = (
+				B303A6192EE33724002D4887 /* Sources */,
+				B303A61A2EE33724002D4887 /* Frameworks */,
+				B303A61B2EE33724002D4887 /* Resources */,
+				B36EDEC72EF5A059004ADAB0 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B36EDEC12EF5A059004ADAB0 /* PBXTargetDependency */,
+			);
+			name = OBSClient;
+			packageProductDependencies = (
+				B303A6542EE36891002D4887 /* SwiftProtobuf */,
+				B303A6562EE36891002D4887 /* SwiftProtobufPluginLibrary */,
+			);
+			productName = OBSClient;
+			productReference = B303A61D2EE33724002D4887 /* OBSClient.app */;
+			productType = "com.apple.product-type.application";
+		};
+		B36EDEAB2EF5A058004ADAB0 /* OBSWidgetsExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B36EDEC32EF5A059004ADAB0 /* Build configuration list for PBXNativeTarget "OBSWidgetsExtension" */;
+			buildPhases = (
+				B36EDEA82EF5A058004ADAB0 /* Sources */,
+				B36EDEA92EF5A058004ADAB0 /* Frameworks */,
+				B36EDEAA2EF5A058004ADAB0 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				B36EDEB22EF5A058004ADAB0 /* OBSWidgets */,
+			);
+			name = OBSWidgetsExtension;
+			packageProductDependencies = (
+			);
+			productName = OBSWidgetsExtension;
+			productReference = B36EDEAC2EF5A058004ADAB0 /* OBSWidgetsExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		B303A6152EE33724002D4887 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2620;
+				LastUpgradeCheck = 2610;
+				TargetAttributes = {
+					B303A61C2EE33724002D4887 = {
+						CreatedOnToolsVersion = 26.1.1;
+						LastSwiftMigration = 2620;
+					};
+					B36EDEAB2EF5A058004ADAB0 = {
+						CreatedOnToolsVersion = 26.2;
+					};
+				};
+			};
+			buildConfigurationList = B303A6182EE33724002D4887 /* Build configuration list for PBXProject "OBSClient" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = B303A6142EE33724002D4887;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				B303A6532EE36891002D4887 /* XCRemoteSwiftPackageReference "swift-protobuf" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = B303A61E2EE33724002D4887 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B303A61C2EE33724002D4887 /* OBSClient */,
+				B36EDEAB2EF5A058004ADAB0 /* OBSWidgetsExtension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		B303A61B2EE33724002D4887 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B3898C0E2EF6DD7B0005E713 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B36EDEAA2EF5A058004ADAB0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		B303A6192EE33724002D4887 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B3898BE12EF6DCF30005E713 /* COBS.swift in Sources */,
+				B3898BE72EF6DD330005E713 /* Haptics.swift in Sources */,
+				B38679612EF6E31D005A6667 /* PortalTracksListView.swift in Sources */,
+				B38679642EF6E32E005A6667 /* PortalLoginWebView.swift in Sources */,
+				B3898BFE2EF6DD5A0005E713 /* MapHomeView.swift in Sources */,
+				B3898BE82EF6DD330005E713 /* OBSFont.swift in Sources */,
+				B3898BE92EF6DD330005E713 /* OBSUIV2.swift in Sources */,
+				B38679672EF6E341005A6667 /* PortalConfigCard.swift in Sources */,
+				B3898BEF2EF6DD410005E713 /* BluetoothManager.swift in Sources */,
+				B34228A62EF6E030002DD5C5 /* openbikesensor.pb.swift in Sources */,
+				B3898BF02EF6DD410005E713 /* OBSUploader.swift in Sources */,
+				B3898BF12EF6DD410005E713 /* LiveActivityManager.swift in Sources */,
+				B38679622EF6E324005A6667 /* PortalTrackDetailView.swift in Sources */,
+				B3898BF22EF6DD410005E713 /* LocationManager.swift in Sources */,
+				B3898BEA2EF6DD330005E713 /* SplashView.swift in Sources */,
+				B3898BE22EF6DCF30005E713 /* LossyDecoding.swift in Sources */,
+				B3898C102EF6DD7B0005E713 /* OBSClientApp.swift in Sources */,
+				B3898C052EF6DD660005E713 /* LiteBinRecorder.swift in Sources */,
+				B38679682EF6E346005A6667 /* PortalApiClient.swift in Sources */,
+				B38679632EF6E329005A6667 /* PortalSettingsView.swift in Sources */,
+				B38679602EF6E2E0005A6667 /* PortalTrackMapView.swift in Sources */,
+				B3898C062EF6DD660005E713 /* ClassicCsvRecorder.swift in Sources */,
+				B38679662EF6E339005A6667 /* PortalHomeView.swift in Sources */,
+				B3898C072EF6DD660005E713 /* InfoView.swift in Sources */,
+				B3898C082EF6DD660005E713 /* ContentView.swift in Sources */,
+				B3898C092EF6DD660005E713 /* OBSFileWriter.swift in Sources */,
+				B38679652EF6E334005A6667 /* PortalLoginView.swift in Sources */,
+				B38679692EF6E34C005A6667 /* CookieSync.swift in Sources */,
+				B3898C0A2EF6DD660005E713 /* DataExportView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B36EDEA82EF5A058004ADAB0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B36EDEC12EF5A059004ADAB0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B36EDEAB2EF5A058004ADAB0 /* OBSWidgetsExtension */;
+			targetProxy = B36EDEC02EF5A059004ADAB0 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		B303A6262EE33725002D4887 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 9LZ74RQ3F4;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		B303A6272EE33725002D4887 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 9LZ74RQ3F4;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		B303A6292EE33725002D4887 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9LZ74RQ3F4;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Sensorwerte werden für die OpenBikeSensor-Aufzeichnung im Hintergrund gespeichert.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = huch;
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Diese App zeichnet deine Position auch im Hintergrund auf, um Routen und Sensordaten während der gesamten Fahrt speichern zu können.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Diese App erfasst deine Position, um deine Fahrt aufzuzeichnen.";
+				INFOPLIST_KEY_NSPrincipalClass = "";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = "";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ichduersie.OBSClient;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		B303A62A2EE33725002D4887 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9LZ74RQ3F4;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/Info.plist;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Sensorwerte werden für die OpenBikeSensor-Aufzeichnung im Hintergrund gespeichert.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = huch;
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "Diese App zeichnet deine Position auch im Hintergrund auf, um Routen und Sensordaten während der gesamten Fahrt speichern zu können.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Diese App erfasst deine Position, um deine Fahrt aufzuzeichnen.";
+				INFOPLIST_KEY_NSPrincipalClass = "";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_NSSupportsLiveActivitiesFrequentUpdates = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchStoryboardName = "";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ichduersie.OBSClient;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		B36EDEC42EF5A059004ADAB0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9LZ74RQ3F4;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = OBSWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = OBSWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ichduersie.OBSClient.OBSWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		B36EDEC52EF5A059004ADAB0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9LZ74RQ3F4;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = OBSWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = OBSWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ichduersie.OBSClient.OBSWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		B303A6182EE33724002D4887 /* Build configuration list for PBXProject "OBSClient" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B303A6262EE33725002D4887 /* Debug */,
+				B303A6272EE33725002D4887 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B303A6282EE33725002D4887 /* Build configuration list for PBXNativeTarget "OBSClient" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B303A6292EE33725002D4887 /* Debug */,
+				B303A62A2EE33725002D4887 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B36EDEC32EF5A059004ADAB0 /* Build configuration list for PBXNativeTarget "OBSWidgetsExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B36EDEC42EF5A059004ADAB0 /* Debug */,
+				B36EDEC52EF5A059004ADAB0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		B303A6532EE36891002D4887 /* XCRemoteSwiftPackageReference "swift-protobuf" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-protobuf";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.33.3;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B303A6542EE36891002D4887 /* SwiftProtobuf */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B303A6532EE36891002D4887 /* XCRemoteSwiftPackageReference "swift-protobuf" */;
+			productName = SwiftProtobuf;
+		};
+		B303A6562EE36891002D4887 /* SwiftProtobufPluginLibrary */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B303A6532EE36891002D4887 /* XCRemoteSwiftPackageReference "swift-protobuf" */;
+			productName = SwiftProtobufPluginLibrary;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = B303A6152EE33724002D4887 /* Project object */;
+}
