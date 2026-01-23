@@ -124,6 +124,7 @@ struct DataExportView: View {
     @State private var isUploading: Bool = false
     @State private var uploadStatusMessage: String?
     @State private var isShowingUploadResultAlert: Bool = false
+    @State private var uploadTask: Task<Void, Never>?
 
     @State private var isShowingUploadConfirm: Bool = false
     @State private var pendingUploadFile: OBSFileInfo?
@@ -190,6 +191,10 @@ struct DataExportView: View {
 
         .onAppear {
             loadFiles()
+        }
+        .onDisappear {
+            // Upload-Task abbrechen wenn View verschwindet
+            uploadTask?.cancel()
         }
         .sheet(isPresented: $isShowingShareSheet) {
             if let url = shareURL {
@@ -483,9 +488,12 @@ struct DataExportView: View {
             return
         }
 
+        // Vorherigen Upload-Task abbrechen falls noch aktiv
+        uploadTask?.cancel()
+
         isUploading = true
 
-        Task {
+        uploadTask = Task {
             do {
                 let result = try await OBSUploader.shared.uploadTrack(
                     fileURL: file.url,

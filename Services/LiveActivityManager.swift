@@ -24,7 +24,7 @@ final class LiveActivityManager {
             lastPacketAt: lastPacketAt
         )
 
-        let content = ActivityContent(state: state, staleDate: Date().addingTimeInterval(30))
+        let content = ActivityContent(state: state, staleDate: Date().addingTimeInterval(60))
 
         do {
             activity = try Activity.request(
@@ -51,7 +51,7 @@ final class LiveActivityManager {
             lastPacketAt: lastPacketAt
         )
 
-        let content = ActivityContent(state: state, staleDate: Date().addingTimeInterval(30))
+        let content = ActivityContent(state: state, staleDate: Date().addingTimeInterval(60))
         await activity.update(content)
     }
 

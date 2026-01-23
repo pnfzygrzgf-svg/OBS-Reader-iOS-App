@@ -32,9 +32,8 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
     private let manager: CLLocationManager
 
     /// Referenz auf den BluetoothManager, damit GPS-Updates in die Aufnahmelogik fließen.
-    /// `unowned`, weil der BluetoothManager den LocationManager erzeugt und i.d.R. länger lebt.
-    /// (Achtung: Wenn bluetoothManager früher freigegeben würde, gäbe es einen Crash.)
-    private unowned let bluetoothManager: BluetoothManager
+    /// `weak` um Crashes zu vermeiden falls BluetoothManager früher freigegeben wird.
+    private weak var bluetoothManager: BluetoothManager?
 
     // =====================================================
     // MARK: - Init / Setup
@@ -138,7 +137,7 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         // Weiterreichen an BluetoothManager:
         // - zählt Distanz
         // - schreibt (im Lite-Modus) Geolocation-Events in die BIN-Datei
-        bluetoothManager.handleLocationUpdate(loc)
+        bluetoothManager?.handleLocationUpdate(loc)
     }
 
     /// Fehler-Callback vom CoreLocation-Manager (z.B. kein GPS, Timeout, denied).

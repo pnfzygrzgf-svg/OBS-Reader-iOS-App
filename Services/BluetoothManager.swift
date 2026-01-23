@@ -85,6 +85,12 @@ final class BluetoothManager: NSObject, ObservableObject {
     /// Merkt sich, ob vor Disconnect eine Aufnahme lief → Auto-Restart nach Reconnect
     private var shouldRestartRecordingOnReconnect: Bool = false
 
+    /// Speichert den Gerätetyp für Auto-Restart (da recordingDeviceType nach stopRecording nil ist)
+    private var deviceTypeForRestart: ObsDeviceType?
+
+    /// Lock für thread-safe Start/Stop Recording
+    private let recordingLock = NSLock()
+
     // -------------------------------------------------
     // MARK: Published State (SwiftUI)
     // -------------------------------------------------
@@ -211,6 +217,15 @@ final class BluetoothManager: NSObject, ObservableObject {
             }
     }
 
+    deinit {
+        watchdogCancellable?.cancel()
+        if #available(iOS 16.1, *) {
+            Task {
+                await live.stop()
+            }
+        }
+    }
+
     // -------------------------------------------------
     // MARK: Main-thread helper
     // -------------------------------------------------
@@ -266,10 +281,13 @@ final class BluetoothManager: NSObject, ObservableObject {
     private func stopRecordingDueToDisconnect() {
         guard isRecording else { return }
 
-        // Merken, dass Aufnahme lief → nach Reconnect automatisch neu starten
-        shouldRestartRecordingOnReconnect = true
+        // Gerätetyp VORHER speichern, da stopRecording() ihn auf nil setzt
+        deviceTypeForRestart = recordingDeviceType
 
         stopRecording()
+
+        // NACH stopRecording setzen, da stopRecording() das Flag auf false setzt
+        shouldRestartRecordingOnReconnect = true
 
         // Meldung anpassen: User weiß, dass es automatisch weitergeht
         ui {
@@ -296,6 +314,12 @@ final class BluetoothManager: NSObject, ObservableObject {
     // -------------------------------------------------
 
     func startRecording() {
+        recordingLock.lock()
+        defer { recordingLock.unlock() }
+
+        // Doppelstart verhindern
+        guard !isRecording else { return }
+
         guard isConnected else {
             ui { self.userNotice = "Kein Sensor verbunden." }
             return
@@ -351,9 +375,15 @@ final class BluetoothManager: NSObject, ObservableObject {
     }
 
     func stopRecording() {
+        recordingLock.lock()
+        defer { recordingLock.unlock() }
+
+        // Doppelstop verhindern
+        guard isRecording else { return }
+
         // Manuelles Stoppen → kein Auto-Restart
         shouldRestartRecordingOnReconnect = false
-        
+
         let t = recordingDeviceType
 
         switch t {
@@ -410,7 +440,8 @@ final class BluetoothManager: NSObject, ObservableObject {
         ui {
             if let prev = self.lastLocation {
                 let segment = location.distance(from: prev)
-                if segment > 0, segment < 2000 {
+                // Minimum 3m um GPS-Rauschen zu filtern, Maximum 2000m für Plausibilität
+                if segment > 3, segment < 2000 {
                     self.currentDistanceMeters += segment
                 }
             }
@@ -595,15 +626,16 @@ final class BluetoothManager: NSObject, ObservableObject {
         guard shouldRestartRecordingOnReconnect else { return }
         guard isConnected else { return }
         guard detectedDeviceType != nil else { return }
-        
+
         shouldRestartRecordingOnReconnect = false
-        
+        deviceTypeForRestart = nil  // Aufräumen
+
         startRecording()
-        
+
         ui {
             self.userNotice = "Verbindung wiederhergestellt: Neue Aufnahme gestartet."
         }
-        
+
         print(">> Auto-restart recording after reconnect")
     }
 }
@@ -698,6 +730,16 @@ extension BluetoothManager: CBCentralManagerDelegate {
         isForcingDisconnect = false
 
         peripheral.discoverServices(nil)
+
+        // Timeout für Service Discovery (5 Sekunden)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
+            guard let self else { return }
+            // Nur trennen wenn verbunden aber kein Gerätetyp erkannt
+            guard self.isConnected, self.detectedDeviceType == nil else { return }
+
+            print(">> Service Discovery Timeout")
+            self.forceDisconnectAndRescan(reason: "Service Discovery Timeout")
+        }
     }
 
     func centralManager(_ central: CBCentralManager,
@@ -845,15 +887,23 @@ extension BluetoothManager: CBPeripheralDelegate {
 
             switch char.uuid {
             case obsLiteCharTxUUID:
-                peripheral.setNotifyValue(true, for: char)
+                if char.properties.contains(.notify) {
+                    peripheral.setNotifyValue(true, for: char)
+                } else {
+                    print("WARNING: \(char.uuid) unterstützt notify nicht")
+                }
 
             case obsClassicDistanceCharUUID:
                 classicDistanceChar = char
-                peripheral.setNotifyValue(true, for: char)
+                if char.properties.contains(.notify) {
+                    peripheral.setNotifyValue(true, for: char)
+                }
 
             case obsClassicButtonCharUUID:
                 classicButtonChar = char
-                peripheral.setNotifyValue(true, for: char)
+                if char.properties.contains(.notify) {
+                    peripheral.setNotifyValue(true, for: char)
+                }
 
             case obsClassicOffsetCharUUID:
                 classicOffsetChar = char
@@ -864,7 +914,9 @@ extension BluetoothManager: CBPeripheralDelegate {
                 peripheral.readValue(for: char)
 
             case batteryLevelCharUUID:
-                peripheral.setNotifyValue(true, for: char)
+                if char.properties.contains(.notify) {
+                    peripheral.setNotifyValue(true, for: char)
+                }
                 peripheral.readValue(for: char)
 
             case firmwareRevisionCharUUID:

@@ -35,7 +35,8 @@ struct ContentView: View {
     @State private var connectionIsStale = false
 
     /// Wie lange ohne Daten, bis wir die Verbindung als verloren darstellen.
-    private let staleAfterSeconds: TimeInterval = 3.5
+    /// Synchron mit BluetoothManager (5 Sekunden)
+    private let staleAfterSeconds: TimeInterval = 5.0
 
     private var isConnectedForUI: Bool {
         bt.isConnected && !connectionIsStale

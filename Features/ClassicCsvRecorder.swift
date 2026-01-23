@@ -48,6 +48,23 @@ final class ClassicCsvRecorder {
     /// (OBS rechnet mit einer linearen Näherung; hier wie in Referenz-Implementationen)
     private let factor: Double = 58.0
 
+    /// Gecachte DateFormatter für Performance (DateFormatter ist teuer zu erstellen)
+    private lazy var csvDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        f.locale = Locale(identifier: "de_DE")
+        f.dateFormat = "dd.MM.yyyy"
+        return f
+    }()
+
+    private lazy var csvTimeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.timeZone = TimeZone(secondsFromGMT: 0)
+        f.locale = Locale(identifier: "de_DE")
+        f.dateFormat = "HH:mm:ss"
+        return f
+    }()
+
     /// Anzahl Messungen pro CSV-Zeile.
     /// In diesem Recorder: genau eine Messung pro Zeile.
     private let maxMeasurementsPerLine = 1
@@ -345,18 +362,9 @@ final class ClassicCsvRecorder {
 
         // --- Datum/Zeit in UTC ---
         // OBS CSV nutzt typischerweise dd.MM.yyyy und HH:mm:ss.
-        let dateFormatter = DateFormatter()
-        dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-        dateFormatter.locale = Locale(identifier: "de_DE")
-        dateFormatter.dateFormat = "dd.MM.yyyy"
-
-        let timeFormatter = DateFormatter()
-        timeFormatter.timeZone = TimeZone(secondsFromGMT: 0)
-        timeFormatter.locale = Locale(identifier: "de_DE")
-        timeFormatter.dateFormat = "HH:mm:ss"
-
-        let dateStr = dateFormatter.string(from: date)
-        let timeStr = timeFormatter.string(from: date)
+        // Gecachte Formatter verwenden für bessere Performance
+        let dateStr = csvDateFormatter.string(from: date)
+        let timeStr = csvTimeFormatter.string(from: date)
 
         // Millis seit Unix epoch (UTC), wie im Header vorgesehen
         let millis = Int64(date.timeIntervalSince1970 * 1000.0)
@@ -371,7 +379,11 @@ final class ClassicCsvRecorder {
         let hdopStr: String
         let satsStr: String
 
-        if let loc = location {
+        // GPS nur verwenden wenn vorhanden UND genau genug (<100m Genauigkeit)
+        // Ungenaue GPS-Daten können die Track-Qualität verschlechtern
+        if let loc = location,
+           loc.horizontalAccuracy >= 0,
+           loc.horizontalAccuracy < 100 {
             latStr = String(loc.coordinate.latitude)
             lonStr = String(loc.coordinate.longitude)
             altStr = String(loc.altitude)
@@ -389,6 +401,7 @@ final class ClassicCsvRecorder {
             // iOS liefert Satellitenanzahl nicht direkt → leer
             satsStr = ""
         } else {
+            // Kein GPS oder zu ungenau (>100m) -> Felder leer lassen
             latStr = ""
             lonStr = ""
             altStr = ""
