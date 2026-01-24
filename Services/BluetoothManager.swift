@@ -181,6 +181,7 @@ final class BluetoothManager: NSObject, ObservableObject {
 
     private var timeWindowMinimum = TimeWindowMinimum(windowSeconds: 5.0)       // Source ID 1 (overtaker/links)
     private var timeWindowMinimumRight = TimeWindowMinimum(windowSeconds: 5.0)  // Source ID 2 (stationary/rechts)
+    private var lastButtonPressAt: Date?  // Für Portal-Kompatibilität: Zeitfenster beginnt nach letztem Tastendruck
 
     // -------------------------------------------------
     // MARK: Connection Watchdog
@@ -1247,10 +1248,22 @@ extension BluetoothManager: CBPeripheralDelegate {
             currentOvertakeCount += 1
         }
 
-        guard let minimum = timeWindowMinimum.currentMinimum else {
+        // Portal-Kompatibilität: Bei zwei Tastendrücken innerhalb von 5 Sekunden
+        // wird nur der Bereich zwischen den Tastendrücken betrachtet.
+        // Falls der letzte Tastendruck länger als 5 Sekunden her ist, ignorieren wir ihn.
+        let now = Date()
+        let effectiveAfter: Date?
+        if let last = lastButtonPressAt, now.timeIntervalSince(last) < 5.0 {
+            effectiveAfter = last
+        } else {
+            effectiveAfter = nil
+        }
+
+        guard let minimum = timeWindowMinimum.minimum(after: effectiveAfter) else {
             overtakeDistanceText = "Überholabstand: Noch keine Messung."
             lastMinimumAtPressCm = nil
             overtakeDistanceCm = nil
+            lastButtonPressAt = now  // Trotzdem setzen für nächsten Press
             return
         }
 
@@ -1258,6 +1271,7 @@ extension BluetoothManager: CBPeripheralDelegate {
         overtakeDistanceCm = minimum
         overtakeDistanceText = "Überholabstand: \(minimum) cm"
 
+        lastButtonPressAt = now  // Für nächsten Tastendruck merken
         lastOvertakeAt = Date()
         appendLiveOvertakeEvent(distanceCm: minimum)
 
@@ -1328,9 +1342,24 @@ private struct TimeWindowMinimum {
 
     /// Liefert das Minimum aller Werte im Zeitfenster (wie Portal: min())
     var currentMinimum: Int? {
+        return minimum(after: nil)
+    }
+
+    /// Liefert das Minimum aller Werte im Zeitfenster, optional nur Samples nach einem bestimmten Zeitpunkt.
+    /// Portal-Kompatibilität: Bei zwei Tastendrücken innerhalb von 5 Sekunden wird nur der Bereich
+    /// zwischen den Tastendrücken betrachtet.
+    func minimum(after: Date?) -> Int? {
         let now = Date()
         let cutoff = now.addingTimeInterval(-windowSeconds)
-        let validSamples = samples.filter { $0.timestamp >= cutoff }
+        let validSamples = samples.filter { sample in
+            // Sample muss innerhalb des 5-Sekunden-Fensters sein
+            guard sample.timestamp >= cutoff else { return false }
+            // Falls ein vorheriger Tastendruck existiert, muss Sample danach sein (strikt >)
+            if let after = after {
+                return sample.timestamp > after
+            }
+            return true
+        }
         guard !validSamples.isEmpty else { return nil }
         return validSamples.map { $0.value }.min()
     }
