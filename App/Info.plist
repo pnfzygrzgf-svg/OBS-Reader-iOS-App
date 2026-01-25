@@ -24,6 +24,13 @@
 	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
 	<true/>
 
+	<!-- App Transport Security - Allow HTTP for local development -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+
 	<!-- Location permission texts (required for "Always") -->
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Diese App erfasst deine Position, um deine Fahrt aufzuzeichnen.</string>

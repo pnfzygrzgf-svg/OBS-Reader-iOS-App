@@ -2,11 +2,11 @@
 
 import SwiftUI
 
-/// Einstiegsseite für den Tab „Aufzeichnungen“.
-/// Diese View zeigt eine einfache Übersichts-/Startseite mit drei Navigationskacheln.
+/// Einstiegsseite für den Tab „Aufzeichnungen".
+/// Diese View zeigt eine einfache Übersichts-/Startseite mit Navigationskacheln.
 ///
 /// Navigation zu:
-/// 1) Fahrtaufzeichnungen & Upload
+/// 1) Lokale Fahrten (bewerten + ins Portal hochladen)
 /// 2) Meine Portal-Tracks
 /// 3) Portal-Einstellungen (Portal-URL, API-Key, Login-Hilfe)
 ///
@@ -56,17 +56,17 @@ struct PortalHomeView: View {
 
             OBSSectionHeaderV2(
                 "Aufzeichnungen",
-                subtitle: "Fahrten hochladen, ansehen und Portal konfigurieren."
+                subtitle: "Fahrten verwalten, bewerten und ins Portal hochladen."
             )
 
-            // 1) Fahrtaufzeichnungen & Upload
+            // 1) Lokale Fahrten
             NavigationLink {
-                DataExportView()
+                LocalRidesListView()
             } label: {
                 OBSRowCardV2(
-                    icon: "folder",
-                    title: "Fahrten ins OBS-Portal hochladen",
-                    subtitle: "Aufgezeichnete Fahrten verwalten und hochladen."
+                    icon: "bicycle",
+                    title: "Lokale Fahrten",
+                    subtitle: "Fahrten ansehen, bewerten und ins Portal hochladen."
                 )
             }
             .buttonStyle(.plain)

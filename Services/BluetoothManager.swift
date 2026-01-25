@@ -177,6 +177,9 @@ final class BluetoothManager: NSObject, ObservableObject {
     // Classic CSV bleibt eigene Datei
     private var classicCsvRecorder: ClassicCsvRecorder?
 
+    // Lokale Fahrten mit Bewertungsmöglichkeit (JSON)
+    private let localRideRecorder = LocalRideRecorder()
+
     private var lastLocation: CLLocation?
 
     private var timeWindowMinimum = TimeWindowMinimum(windowSeconds: 5.0)       // Source ID 1 (overtaker/links)
@@ -346,21 +349,20 @@ final class BluetoothManager: NSObject, ObservableObject {
 
         recordingDeviceType = t
 
-        switch t {
-        case .lite:
-            liteRecorder.startSession()
+        // Lokale Fahrt als GeoJSON starten (ersetzt bin/csv)
+        localRideRecorder.startSession(handlebarWidthCm: handlebarWidthCm)
 
-        case .classic:
-            let halfHandlebar = handlebarWidthCm / 2
-            let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
-            let recorder = ClassicCsvRecorder(
-                handlebarOffsetCm: halfHandlebar,
-                appVersion: appVersion,
-                firmwareVersion: firmwareRevision
-            )
-            classicCsvRecorder = recorder
-            recorder.startSession()
-        }
+        // .bin/.csv Erstellung deaktiviert - GeoJSON enthält alle Daten
+        // switch t {
+        // case .lite:
+        //     liteRecorder.startSession()
+        // case .classic:
+        //     let halfHandlebar = handlebarWidthCm / 2
+        //     let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+        //     let recorder = ClassicCsvRecorder(...)
+        //     classicCsvRecorder = recorder
+        //     recorder.startSession()
+        // }
 
         if #available(iOS 16.1, *) {
             let sessionId = UUID().uuidString
@@ -389,24 +391,21 @@ final class BluetoothManager: NSObject, ObservableObject {
 
         let t = recordingDeviceType
 
-        switch t {
-        case .some(.lite):
-            liteRecorder.finishSession()
-        case .some(.classic):
-            classicCsvRecorder?.finishSession()
-        case .none:
-            break
-        }
+        // Lokale Fahrt als GeoJSON beenden
+        localRideRecorder.finishSession()
 
-        let fileURL: URL?
-        switch t {
-        case .some(.lite):
-            fileURL = liteRecorder.fileURL
-        case .some(.classic):
-            fileURL = classicCsvRecorder?.fileURL
-        case .none:
-            fileURL = nil
-        }
+        // .bin/.csv Erstellung deaktiviert - GeoJSON enthält alle Daten
+        // switch t {
+        // case .some(.lite):
+        //     liteRecorder.finishSession()
+        // case .some(.classic):
+        //     classicCsvRecorder?.finishSession()
+        // case .none:
+        //     break
+        // }
+
+        // Stats für die GeoJSON-Datei speichern
+        let fileURL: URL? = localRideRecorder.fileURL
 
         if let url = fileURL {
             let hasCount = currentOvertakeCount > 0
@@ -450,6 +449,9 @@ final class BluetoothManager: NSObject, ObservableObject {
             }
             self.lastLocation = location
         }
+
+        // Track-Punkt für lokale Fahrt aufzeichnen (beide Gerätetypen)
+        localRideRecorder.recordTrackPoint(location)
 
         // Nur Lite schreibt Geo ins BIN
         guard recordingDeviceType == .lite else { return }
@@ -1274,6 +1276,17 @@ extension BluetoothManager: CBPeripheralDelegate {
         lastButtonPressAt = now  // Für nächsten Tastendruck merken
         lastOvertakeAt = Date()
         appendLiveOvertakeEvent(distanceCm: minimum)
+
+        // Event für lokale Fahrt mit Bewertung aufzeichnen
+        if isRecording, let loc = lastLocation {
+            localRideRecorder.recordOvertakeEvent(
+                coordinate: loc.coordinate,
+                distanceCm: minimum,
+                distanceStationaryCm: timeWindowMinimumRight.currentMinimum,
+                speed: loc.speed >= 0 ? loc.speed : nil,
+                course: loc.course >= 0 ? loc.course : nil
+            )
+        }
 
         if isRecording, #available(iOS 16.1, *) {
             let cm = self.overtakeDistanceCm

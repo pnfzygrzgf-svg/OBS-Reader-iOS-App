@@ -82,6 +82,40 @@ final class OBSUploader {
     ///   - File-Lesefehler (Data(contentsOf:))
     ///   - Netzwerkfehler (URLSession)
     func uploadTrack(fileURL: URL, baseUrl: String, apiKey: String) async throws -> OBSUploadResult {
+        let fileData = try Data(contentsOf: fileURL)
+        let contentType = fileURL.pathExtension.lowercased() == "geojson"
+            ? "application/geo+json"
+            : "application/octet-stream"
+        return try await uploadTrackData(
+            fileData: fileData,
+            fileName: fileURL.lastPathComponent,
+            contentType: contentType,
+            baseUrl: baseUrl,
+            apiKey: apiKey
+        )
+    }
+
+    /// Lädt GeoJSON-Daten direkt (ohne Datei) zum OBS-Server hoch.
+    ///
+    /// - Parameters:
+    ///   - geoJSONData: Die GeoJSON-Daten als Data.
+    ///   - fileName: Der Dateiname für den Upload (z.B. "ride_20260124.geojson").
+    ///   - baseUrl: Basis-URL des OBS-Portals.
+    ///   - apiKey: API-Key/User-ID für den Server.
+    ///
+    /// - Returns: OBSUploadResult mit HTTP-Statuscode und Antwort-Body.
+    func uploadGeoJSON(geoJSONData: Data, fileName: String, baseUrl: String, apiKey: String) async throws -> OBSUploadResult {
+        return try await uploadTrackData(
+            fileData: geoJSONData,
+            fileName: fileName,
+            contentType: "application/geo+json",
+            baseUrl: baseUrl,
+            apiKey: apiKey
+        )
+    }
+
+    /// Interne Methode für den eigentlichen Upload.
+    private func uploadTrackData(fileData: Data, fileName: String, contentType: String, baseUrl: String, apiKey: String) async throws -> OBSUploadResult {
 
         // 1) Basis-URL normalisieren, damit sie sicher auf /api/tracks zeigt.
         let urlString = normalizeObsUrl(baseUrl)
@@ -89,15 +123,10 @@ final class OBSUploader {
             throw UploadError.invalidURL
         }
 
-        // 2) Datei komplett in den Speicher laden.
-        // Hinweis: Für sehr große Dateien könnte man streaming nutzen,
-        // aber für typische OBS-Tracks ist das oft ausreichend.
-        let fileData = try Data(contentsOf: fileURL)
-
-        // 3) Boundary erzeugen (muss pro Request eindeutig sein)
+        // 2) Boundary erzeugen (muss pro Request eindeutig sein)
         let boundary = "Boundary-\(UUID().uuidString)"
 
-        // 4) Request konfigurieren (Methode + Header)
+        // 3) Request konfigurieren (Methode + Header)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
 
@@ -107,18 +136,18 @@ final class OBSUploader {
         // Content-Type für multipart inkl. boundary
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 
-        // 5) Multipart-Body zusammenbauen
+        // 4) Multipart-Body zusammenbauen
         var body = Data()
         let lineBreak = "\r\n"
 
         // Start des File-Parts: --boundary
         body.append("--\(boundary)\(lineBreak)")
 
-        // Part-Header: Name muss "body" heißen, filename setzen wir auf den Dateinamen
-        body.append("Content-Disposition: form-data; name=\"body\"; filename=\"\(fileURL.lastPathComponent)\"\(lineBreak)")
+        // Part-Header: Name muss "body" heißen
+        body.append("Content-Disposition: form-data; name=\"body\"; filename=\"\(fileName)\"\(lineBreak)")
 
-        // Content-Type des Files: generisch binär
-        body.append("Content-Type: application/octet-stream\(lineBreak)\(lineBreak)")
+        // Content-Type des Files
+        body.append("Content-Type: \(contentType)\(lineBreak)\(lineBreak)")
 
         // File-Daten anhängen
         body.append(fileData)
@@ -130,18 +159,18 @@ final class OBSUploader {
         // Body dem Request zuweisen
         request.httpBody = body
 
-        // 6) Request senden (async/await)
+        // 5) Request senden (async/await)
         let (data, response) = try await URLSession.shared.data(for: request)
 
-        // 7) Response als HTTP prüfen
+        // 6) Response als HTTP prüfen
         guard let httpResponse = response as? HTTPURLResponse else {
             throw UploadError.noHTTPResponse
         }
 
-        // 8) Antwort-Body als String (UTF-8) dekodieren
+        // 7) Antwort-Body als String (UTF-8) dekodieren
         let responseBody = String(data: data, encoding: .utf8) ?? ""
 
-        // 9) Ergebnisobjekt zurückgeben
+        // 8) Ergebnisobjekt zurückgeben
         return OBSUploadResult(
             statusCode: httpResponse.statusCode,
             responseBody: responseBody

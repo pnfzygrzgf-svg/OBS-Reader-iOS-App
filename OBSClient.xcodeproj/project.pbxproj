@@ -42,6 +42,15 @@
 		B3898C0A2EF6DD660005E713 /* DataExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898C012EF6DD660005E713 /* DataExportView.swift */; };
 		B3898C0E2EF6DD7B0005E713 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B3898C0B2EF6DD7B0005E713 /* Assets.xcassets */; };
 		B3898C102EF6DD7B0005E713 /* OBSClientApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898C0D2EF6DD7B0005E713 /* OBSClientApp.swift */; };
+		B389AD9A2F2570CC00E181EB /* ThreatLevel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B389AD982F2570CC00E181EB /* ThreatLevel.swift */; };
+		B389AD9B2F2570CC00E181EB /* LocalRideSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B389AD972F2570CC00E181EB /* LocalRideSession.swift */; };
+		B389AD9C2F2570CC00E181EB /* LocalOvertakeEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B389AD962F2570CC00E181EB /* LocalOvertakeEvent.swift */; };
+		B389ADA02F25710000E181EB /* LocalRideRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B389AD9D2F25710000E181EB /* LocalRideRecorder.swift */; };
+		B389ADA12F25710000E181EB /* LocalRideStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B389AD9E2F25710000E181EB /* LocalRideStore.swift */; };
+		B389ADA22F25710000E181EB /* LocalRidesListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B389AD9F2F25710000E181EB /* LocalRidesListView.swift */; };
+		B389ADA32F25710000E181EB /* LocalRideDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B389ADA42F25710000E181EB /* LocalRideDetailView.swift */; };
+		B389ADA52F25710000E181EB /* LocalRideMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B389ADA62F25710000E181EB /* LocalRideMapView.swift */; };
+		B389ADA72F25710000E181EB /* ThreatRatingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B389ADA82F25710000E181EB /* ThreatRatingView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -104,6 +113,15 @@
 		B3898C0B2EF6DD7B0005E713 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B3898C0C2EF6DD7B0005E713 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B3898C0D2EF6DD7B0005E713 /* OBSClientApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OBSClientApp.swift; sourceTree = "<group>"; };
+		B389AD962F2570CC00E181EB /* LocalOvertakeEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalOvertakeEvent.swift; sourceTree = "<group>"; };
+		B389AD972F2570CC00E181EB /* LocalRideSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalRideSession.swift; sourceTree = "<group>"; };
+		B389AD982F2570CC00E181EB /* ThreatLevel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreatLevel.swift; sourceTree = "<group>"; };
+		B389AD9D2F25710000E181EB /* LocalRideRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalRideRecorder.swift; sourceTree = "<group>"; };
+		B389AD9E2F25710000E181EB /* LocalRideStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalRideStore.swift; sourceTree = "<group>"; };
+		B389AD9F2F25710000E181EB /* LocalRidesListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalRidesListView.swift; sourceTree = "<group>"; };
+		B389ADA42F25710000E181EB /* LocalRideDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalRideDetailView.swift; sourceTree = "<group>"; };
+		B389ADA62F25710000E181EB /* LocalRideMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalRideMapView.swift; sourceTree = "<group>"; };
+		B389ADA82F25710000E181EB /* ThreatRatingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreatRatingView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -160,17 +178,18 @@
 		B303A6142EE33724002D4887 = {
 			isa = PBXGroup;
 			children = (
-				B34228A42EF6E019002DD5C5 /* GeneratedFiles */,
-				B3C6D5782EF6D868009167D6 /* Utils */,
-				B3C6D5772EF6D860009167D6 /* UI */,
-				B3C6D5762EF6D856009167D6 /* Services */,
-				B3C6D5752EF6D84D009167D6 /* Portal */,
-				B3C6D5742EF6D844009167D6 /* Map */,
-				B3C6D5732EF6D828009167D6 /* Features */,
 				B3C6D5722EF6D820009167D6 /* App */,
-				B36EDEB22EF5A058004ADAB0 /* OBSWidgets */,
+				B3C6D5732EF6D828009167D6 /* Features */,
 				B36EDEAD2EF5A058004ADAB0 /* Frameworks */,
+				B34228A42EF6E019002DD5C5 /* GeneratedFiles */,
+				B3C6D5742EF6D844009167D6 /* Map */,
+				B389AD992F2570CC00E181EB /* Models */,
+				B36EDEB22EF5A058004ADAB0 /* OBSWidgets */,
+				B3C6D5752EF6D84D009167D6 /* Portal */,
 				B303A61E2EE33724002D4887 /* Products */,
+				B3C6D5762EF6D856009167D6 /* Services */,
+				B3C6D5772EF6D860009167D6 /* UI */,
+				B3C6D5782EF6D868009167D6 /* Utils */,
 			);
 			sourceTree = "<group>";
 		};
@@ -200,6 +219,16 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		B389AD992F2570CC00E181EB /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				B389AD962F2570CC00E181EB /* LocalOvertakeEvent.swift */,
+				B389AD972F2570CC00E181EB /* LocalRideSession.swift */,
+				B389AD982F2570CC00E181EB /* ThreatLevel.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
 		B3C6D5722EF6D820009167D6 /* App */ = {
 			isa = PBXGroup;
 			children = (
@@ -218,9 +247,21 @@
 				B3898C012EF6DD660005E713 /* DataExportView.swift */,
 				B3898C022EF6DD660005E713 /* InfoView.swift */,
 				B3898C032EF6DD660005E713 /* LiteBinRecorder.swift */,
+				B389ADAA2F25710000E181EB /* LocalRides */,
 				B3898C042EF6DD660005E713 /* OBSFileWriter.swift */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		B389ADAA2F25710000E181EB /* LocalRides */ = {
+			isa = PBXGroup;
+			children = (
+				B389ADA42F25710000E181EB /* LocalRideDetailView.swift */,
+				B389ADA62F25710000E181EB /* LocalRideMapView.swift */,
+				B389AD9F2F25710000E181EB /* LocalRidesListView.swift */,
+				B389ADA82F25710000E181EB /* ThreatRatingView.swift */,
+			);
+			path = LocalRides;
 			sourceTree = "<group>";
 		};
 		B3C6D5742EF6D844009167D6 /* Map */ = {
@@ -254,6 +295,8 @@
 				B3898BEB2EF6DD410005E713 /* BluetoothManager.swift */,
 				B3898BEC2EF6DD410005E713 /* LiveActivityManager.swift */,
 				B3898BED2EF6DD410005E713 /* LocationManager.swift */,
+				B389AD9D2F25710000E181EB /* LocalRideRecorder.swift */,
+				B389AD9E2F25710000E181EB /* LocalRideStore.swift */,
 				B3898BEE2EF6DD410005E713 /* OBSUploader.swift */,
 			);
 			path = Services;
@@ -401,6 +444,15 @@
 				B3898BE92EF6DD330005E713 /* OBSUIV2.swift in Sources */,
 				B38679672EF6E341005A6667 /* PortalConfigCard.swift in Sources */,
 				B3898BEF2EF6DD410005E713 /* BluetoothManager.swift in Sources */,
+				B389AD9A2F2570CC00E181EB /* ThreatLevel.swift in Sources */,
+				B389AD9B2F2570CC00E181EB /* LocalRideSession.swift in Sources */,
+				B389AD9C2F2570CC00E181EB /* LocalOvertakeEvent.swift in Sources */,
+				B389ADA02F25710000E181EB /* LocalRideRecorder.swift in Sources */,
+				B389ADA12F25710000E181EB /* LocalRideStore.swift in Sources */,
+				B389ADA22F25710000E181EB /* LocalRidesListView.swift in Sources */,
+				B389ADA32F25710000E181EB /* LocalRideDetailView.swift in Sources */,
+				B389ADA52F25710000E181EB /* LocalRideMapView.swift in Sources */,
+				B389ADA72F25710000E181EB /* ThreatRatingView.swift in Sources */,
 				B34228A62EF6E030002DD5C5 /* openbikesensor.pb.swift in Sources */,
 				B3898BF02EF6DD410005E713 /* OBSUploader.swift in Sources */,
 				B3898BF12EF6DD410005E713 /* LiveActivityManager.swift in Sources */,
