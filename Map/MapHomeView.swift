@@ -9,15 +9,32 @@ struct MapHomeView: View {
 
     @State private var recenterToken: Int = 0
     @State private var showClearConfirm: Bool = false
+    @State private var isMapReady: Bool = false
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
 
-            LiveOvertakeMapView(
-                events: bt.liveOvertakeEvents,
-                recenterToken: $recenterToken
-            )
-            .ignoresSafeArea()
+            if isMapReady {
+                LiveOvertakeMapView(
+                    events: bt.liveOvertakeEvents,
+                    recenterToken: $recenterToken
+                )
+                .ignoresSafeArea()
+                .transition(.opacity)
+            } else {
+                // Placeholder während MapKit lädt
+                Color(.systemGroupedBackground)
+                    .ignoresSafeArea()
+                    .overlay {
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .scaleEffect(1.2)
+                            Text("Karte wird geladen...")
+                                .font(.obsFootnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+            }
 
             // Overlay unten links: letzter Überholvorgang
             VStack(alignment: .leading, spacing: 4) {
@@ -82,6 +99,14 @@ struct MapHomeView: View {
             Button("Abbrechen", role: .cancel) {}
         } message: {
             Text("Alle Überholvorgang-Punkte werden von der Karte entfernt.")
+        }
+        .task {
+            // Kurze Verzögerung damit UI den Lade-Zustand anzeigen kann
+            // bevor MapKit den Main-Thread blockiert
+            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+            withAnimation(.easeIn(duration: 0.2)) {
+                isMapReady = true
+            }
         }
     }
 }
@@ -198,18 +223,8 @@ private struct LiveOvertakeMapView: UIViewRepresentable {
             }
 
             if let distance = ann.event.distance {
-                if distance <= 1.10 {
-                    view.markerTintColor = .systemRed
-                } else if distance <= 1.30 {
-                    view.markerTintColor = .systemOrange
-                } else if distance <= 1.50 {
-                    view.markerTintColor = .systemYellow
-                } else if distance <= 1.70 {
-                    view.markerTintColor = .systemGreen
-                } else {
-                    view.markerTintColor = UIColor.systemGreen.withAlphaComponent(0.8)
-                }
-
+                // Farbskala zentralisiert in OBSOvertakeThresholds
+                view.markerTintColor = OBSOvertakeThresholds.uiColor(for: distance)
                 view.glyphText = String(format: "%.2f", distance)
             } else {
                 view.markerTintColor = .systemGray

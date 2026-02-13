@@ -73,4 +73,39 @@ enum COBS {
         //   dieses Delimiter-Byte selbst ergänzt, um Frames zu trennen.
         return out
     }
+
+    /// Dekodiert COBS-kodierte Daten.
+    ///
+    /// - Parameter input: COBS-kodierte Daten (ohne abschließendes 0x00).
+    /// - Returns: Die dekodierten Rohdaten, oder nil bei ungültigen Daten.
+    static func decode(_ input: Data) -> Data? {
+        if input.isEmpty { return Data() }
+
+        var out = Data()
+        var index = input.startIndex
+
+        while index < input.endIndex {
+            let code = input[index]
+            index = input.index(after: index)
+
+            // code == 0 ist ungültig in COBS-kodierten Daten
+            if code == 0 { return nil }
+
+            // (code - 1) Bytes folgen
+            let count = Int(code) - 1
+            for _ in 0..<count {
+                guard index < input.endIndex else { return nil }
+                out.append(input[index])
+                index = input.index(after: index)
+            }
+
+            // Wenn code < 0xFF, wurde ein 0x00 im Original impliziert
+            // (außer wir sind am Ende der Daten)
+            if code < 0xFF && index < input.endIndex {
+                out.append(0x00)
+            }
+        }
+
+        return out
+    }
 }

@@ -49,6 +49,12 @@ struct PortalTrackDetailView: View {
     // Fullscreen-State für die Karte (öffnet PortalTrackMapView in fullScreenCover)
     @State private var showFullscreenMap = false
 
+    // MARK: - Delete State
+    @AppStorage("obsApiKey") private var obsApiKey: String = ""
+    @State private var showDeleteConfirm = false
+    @State private var isDeleting = false
+    @Environment(\.dismiss) private var dismiss
+
     /// Custom init, weil `track` als @State initialisiert werden muss.
     /// - `initialTrack` bleibt unverändert als Referenz für slug/Startdaten
     /// - `track` ist der veränderliche State für die UI
@@ -68,9 +74,27 @@ struct PortalTrackDetailView: View {
         }
         .navigationTitle("Track-Details")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(role: .destructive) {
+                    showDeleteConfirm = true
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .disabled(obsApiKey.isEmpty || isDeleting)
+            }
+        }
         .task {
             await loadDetail()
             await loadTrackData()
+        }
+        .alert("Fahrt löschen?", isPresented: $showDeleteConfirm) {
+            Button("Abbrechen", role: .cancel) { }
+            Button("Löschen", role: .destructive) {
+                Task { await deleteTrack() }
+            }
+        } message: {
+            Text("Diese Fahrt wird unwiderruflich aus dem Portal gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.")
         }
         .alert(
             "Fehler",
@@ -360,6 +384,39 @@ struct PortalTrackDetailView: View {
             let lon = pair[0]
             let lat = pair[1]
             return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        }
+    }
+
+    // MARK: - Track löschen
+
+    private func deleteTrack() async {
+        guard !obsApiKey.isEmpty else {
+            errorMessage = "Kein API-Key konfiguriert. Bitte in den Portal-Einstellungen eintragen."
+            return
+        }
+
+        isDeleting = true
+        defer { isDeleting = false }
+
+        do {
+            let client = PortalApiClient(baseUrl: baseUrl)
+            try await client.deleteTrack(slug: initialTrack.slug, apiKey: obsApiKey)
+
+            await MainActor.run {
+                Haptics.shared.success()
+                NotificationCenter.default.post(name: .portalDataChanged, object: nil)
+                dismiss()
+            }
+        } catch let PortalApiError.httpError(status: status, body: body) {
+            if status == 401 || status == 403 {
+                errorMessage = "Keine Berechtigung zum Löschen.\nBist du der Eigentümer dieser Fahrt?\n\nAntwort:\n\(body)"
+            } else {
+                errorMessage = "Fehler beim Löschen (Status \(status)).\nAntwort:\n\(body)"
+            }
+            Haptics.shared.error()
+        } catch {
+            errorMessage = "Fehler beim Löschen: \(error.localizedDescription)"
+            Haptics.shared.error()
         }
     }
 }

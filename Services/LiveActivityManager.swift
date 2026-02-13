@@ -13,7 +13,10 @@ final class LiveActivityManager {
         sessionId: String,
         lastOvertakeCm: Int?,
         sensorActive: Bool,
-        lastPacketAt: Date?
+        lastPacketAt: Date?,
+        recordingStartTime: Date? = nil,
+        overtakeCount: Int = 0,
+        distanceMeters: Double = 0.0
     ) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
 
@@ -21,7 +24,10 @@ final class LiveActivityManager {
         let state = OvertakeActivityAttributes.ContentState(
             lastOvertakeCm: lastOvertakeCm,
             sensorActive: sensorActive,
-            lastPacketAt: lastPacketAt
+            lastPacketAt: lastPacketAt,
+            recordingStartTime: recordingStartTime,
+            overtakeCount: overtakeCount,
+            distanceMeters: distanceMeters
         )
 
         let content = ActivityContent(state: state, staleDate: Date().addingTimeInterval(60))
@@ -41,14 +47,20 @@ final class LiveActivityManager {
     func update(
         lastOvertakeCm: Int?,
         sensorActive: Bool,
-        lastPacketAt: Date?
+        lastPacketAt: Date?,
+        recordingStartTime: Date? = nil,
+        overtakeCount: Int = 0,
+        distanceMeters: Double = 0.0
     ) async {
         guard let activity else { return }
 
         let state = OvertakeActivityAttributes.ContentState(
             lastOvertakeCm: lastOvertakeCm,
             sensorActive: sensorActive,
-            lastPacketAt: lastPacketAt
+            lastPacketAt: lastPacketAt,
+            recordingStartTime: recordingStartTime,
+            overtakeCount: overtakeCount,
+            distanceMeters: distanceMeters
         )
 
         let content = ActivityContent(state: state, staleDate: Date().addingTimeInterval(60))

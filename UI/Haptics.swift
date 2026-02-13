@@ -40,9 +40,20 @@ final class Haptics {
         generator.notificationOccurred(.warning)
     }
 
-    /// Spielt ein „Error“-Haptik aus (z.B. bei Upload-/Verbindungsfehlern).
+    /// Spielt ein „Error"-Haptik aus (z.B. bei Upload-/Verbindungsfehlern).
     func error() {
         generator.prepare()
         generator.notificationOccurred(.error)
+    }
+
+    // MARK: - Impact Feedback
+
+    /// iOS-Generator für „Impact"-Feedback (leichte Vibration).
+    private let impactLight = UIImpactFeedbackGenerator(style: .light)
+
+    /// Spielt ein leichtes Impact-Haptik aus (z.B. bei Pull-to-Refresh, Löschen).
+    func light() {
+        impactLight.prepare()
+        impactLight.impactOccurred()
     }
 }

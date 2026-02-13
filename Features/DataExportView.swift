@@ -62,7 +62,7 @@ struct OvertakeStatsStore {
 // =====================================================
 
 /// Metadaten zu einer OBS-Aufnahmedatei (.bin / .csv), so wie sie in der Liste angezeigt wird.
-struct OBSFileInfo: Identifiable {
+struct OBSFileInfo: Identifiable, Hashable {
     let id = UUID()
     let url: URL
     let name: String
@@ -71,19 +71,57 @@ struct OBSFileInfo: Identifiable {
     let modificationDate: Date?
     let overtakeCount: Int?
     let distanceKm: Double?
-}
 
-/// Wrapper für das iOS-Share Sheet (UIActivityViewController),
-/// damit es in SwiftUI via `.sheet` genutzt werden kann.
-struct ActivityView: UIViewControllerRepresentable {
-    let activityItems: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
     }
 
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {
-        // Kein Live-Update nötig (Share Sheet ist “fire and forget”).
+    static func == (lhs: OBSFileInfo, rhs: OBSFileInfo) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
+/// Hilfsfunktion um UIActivityViewController direkt zu präsentieren
+/// (vermeidet SwiftUI .sheet() Blockierung)
+func presentShareSheet(for url: URL, completion: @escaping () -> Void) {
+    // UIActivityViewController im Hintergrund vorbereiten
+    Task.detached(priority: .userInitiated) {
+        // Auf Main-Thread präsentieren
+        await MainActor.run {
+            let activityVC = UIActivityViewController(
+                activityItems: [url],
+                applicationActivities: nil
+            )
+
+            // Für iPad: Popover-Anker setzen
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let rootVC = windowScene.windows.first?.rootViewController {
+
+                // Obersten ViewController finden
+                var topVC = rootVC
+                while let presented = topVC.presentedViewController {
+                    topVC = presented
+                }
+
+                activityVC.popoverPresentationController?.sourceView = topVC.view
+                activityVC.popoverPresentationController?.sourceRect = CGRect(
+                    x: topVC.view.bounds.midX,
+                    y: topVC.view.bounds.midY,
+                    width: 0,
+                    height: 0
+                )
+
+                activityVC.completionWithItemsHandler = { _, _, _, _ in
+                    completion()
+                }
+
+                topVC.present(activityVC, animated: true) {
+                    completion()
+                }
+            } else {
+                completion()
+            }
+        }
     }
 }
 
@@ -114,14 +152,16 @@ struct DataExportView: View {
     // -------------------------------------------------
 
     @State private var files: [OBSFileInfo] = []
+    @State private var isLoadingFiles = true
 
-    @State private var isShowingShareSheet = false
-    @State private var shareURL: URL?
+    @State private var isPreparingShare = false
 
     @AppStorage("obsBaseUrl") private var obsBaseUrl: String = ""
     @AppStorage("obsApiKey")  private var obsApiKey: String = ""
 
     @State private var isUploading: Bool = false
+    @State private var uploadProgress: Double = 0.0
+    @State private var uploadingFileName: String = ""
     @State private var uploadStatusMessage: String?
     @State private var isShowingUploadResultAlert: Bool = false
     @State private var uploadTask: Task<Void, Never>?
@@ -145,62 +185,95 @@ struct DataExportView: View {
             Color(.systemGroupedBackground)
                 .ignoresSafeArea()
 
-            ScrollView {
-                VStack(spacing: 24) {
-                    if !portalConfigured {
-                        portalHintCard
-                            .obsCardStyleV2()
-                    }
-
-                    recordingsSection
+            if isLoadingFiles && files.isEmpty {
+                // Lade-Zustand beim ersten Laden
+                VStack(spacing: 12) {
+                    ProgressView()
+                    Text("Lade Dateien...")
+                        .font(.obsFootnote)
+                        .foregroundStyle(.secondary)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 32)
-                .font(.obsBody)
-            }
-            .scrollIndicators(.hidden)
-            .refreshable {
-                loadFiles()
+            } else {
+                ScrollView {
+                    VStack(spacing: 24) {
+                        if !portalConfigured {
+                            portalHintCard
+                        }
+
+                        recordingsSection
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+                    .padding(.bottom, 32)
+                    .font(.obsBody)
+                }
+                .scrollIndicators(.hidden)
+                .refreshable {
+                    await loadFilesAsync()
+                }
             }
 
             if isUploading {
                 VStack {
                     Spacer()
-                    HStack(spacing: 12) {
-                        ProgressView()
-                            .progressViewStyle(.circular)
-                        Text("Upload läuft…")
-                            .font(.obsBody)
+                    VStack(spacing: OBSSpacing.md) {
+                        Text(uploadingFileName)
+                            .font(.obsFootnote)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+
+                        ProgressView(value: uploadProgress)
+                            .progressViewStyle(.linear)
+                            .frame(width: 200)
+
+                        Text("\(Int(uploadProgress * 100))%")
+                            .font(.obsCaption)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                    .padding(.horizontal, OBSSpacing.xl)
+                    .padding(.vertical, OBSSpacing.lg)
                     .background(.ultraThinMaterial)
-                    .cornerRadius(16)
-                    .shadow(radius: 4)
-                    .padding(.bottom, 16)
+                    .cornerRadius(OBSCornerRadius.large)
+                    .shadow(radius: OBSShadow.standardRadius)
+                    .padding(.bottom, OBSSpacing.xl)
                 }
                 .transition(.opacity)
             }
+
+            // Lade-Overlay für Teilen-Vorbereitung
+            if isPreparingShare {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .overlay {
+                        VStack(spacing: 12) {
+                            ProgressView()
+                                .scaleEffect(1.2)
+                            Text("Wird vorbereitet...")
+                                .font(.obsFootnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(24)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(16)
+                    }
+                    .transition(.opacity)
+            }
         }
-        .navigationTitle("Fahrten auf dem Gerät")
+        .navigationTitle("Lokale Fahrten")
         .navigationBarTitleDisplayMode(.inline)
 
         // ✅ TECH-FIX: statt .toolbar (bei dir “ambiguous”) nutzen wir navigationBarItems.
         .navigationBarItems(trailing: deleteAllButton)
 
-        .onAppear {
-            loadFiles()
+        .task {
+            await loadFilesAsync()
         }
         .onDisappear {
             // Upload-Task abbrechen wenn View verschwindet
             uploadTask?.cancel()
         }
-        .sheet(isPresented: $isShowingShareSheet) {
-            if let url = shareURL {
-                ActivityView(activityItems: [url])
-            }
-        }
+        // Share-Sheet wird jetzt direkt via UIKit präsentiert (siehe presentShareSheet)
         .alert("Upload", isPresented: $isShowingUploadResultAlert) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -237,10 +310,13 @@ struct DataExportView: View {
             }
         } message: {
             if let file = pendingDeleteFile {
-                Text("Diese Fahrt „\(file.name)“ wird dauerhaft gelöscht.")
+                Text("Diese Fahrt \"\(file.name)\" wird dauerhaft gelöscht.")
             } else {
                 Text("Alle Fahrten werden dauerhaft gelöscht.")
             }
+        }
+        .navigationDestination(item: $selectedFileForMap) { file in
+            LocalTrackDetailView(file: file)
         }
     }
 
@@ -263,23 +339,15 @@ struct DataExportView: View {
     // =====================================================
 
     private var portalHintCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                Text("Portal noch nicht eingerichtet")
-                    .font(.obsSectionTitle)
-            }
-
-            Text("Um Fahrten direkt ins OBS-Portal hochzuladen, bitte im Bereich Aufzeichnungen → Portal-Einstellungen die Portal-URL und den API-Key eintragen.")
-                .font(.obsFootnote)
-                .foregroundStyle(.secondary)
-        }
+        OBSWarningCardView(
+            title: "Portal nicht verbunden",
+            message: "Richte das Portal in den Einstellungen ein, um Fahrten hochladen zu können."
+        )
     }
 
     private var recordingsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            OBSSectionHeaderV2("Dateien", subtitle: "Teilen, hochladen oder löschen.")
+            OBSSectionHeaderV2("Aufzeichnungen", subtitle: "Tippe auf eine Fahrt für weitere Optionen.")
 
             if files.isEmpty {
                 emptyStateCard
@@ -296,22 +364,14 @@ struct DataExportView: View {
     }
 
     private var emptyStateCard: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "doc.text.magnifyingglass")
-                .font(.system(size: 38))
-                .foregroundStyle(.secondary)
-
-            Text("Keine Fahrtauszeichnung gefunden")
-                .font(.obsSectionTitle)
-
-            Text("Erstelle eine Fahrtauszeichnung. Danach erscheinen deine .bin- oder .csv-Dateien hier zum Teilen oder Hochladen.")
-                .font(.obsFootnote)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
+        OBSEmptyStateView(
+            icon: "bicycle",
+            title: "Noch keine Fahrten",
+            message: "Starte eine Aufnahme im Sensor-Tab. Deine Fahrten erscheinen dann hier."
+        )
     }
+
+    @State private var selectedFileForMap: OBSFileInfo?
 
     private func fileRow(for file: OBSFileInfo) -> some View {
         let metaLine = "\(file.sizeDescription) · \(file.dateDescription)"
@@ -321,163 +381,226 @@ struct DataExportView: View {
         if let km = file.distanceKm { statsParts.append("\(String(format: "%.2f", km)) km") }
         let statsLine = statsParts.joined(separator: " · ")
 
-        return HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(file.name)
-                    .font(.obsBody.weight(.semibold))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+        let isSupportedFormat = file.name.lowercased().hasSuffix(".csv") || file.name.lowercased().hasSuffix(".bin")
 
-                Text(metaLine)
-                    .font(.obsCaption)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
+        return NavigationLink {
+            if isSupportedFormat {
+                LocalTrackDetailView(file: file)
+            } else {
+                fileDetailFallback(for: file)
+            }
+        } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(file.name)
+                        .font(.obsBody.weight(.semibold))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
 
-                if !statsLine.isEmpty {
-                    Text(statsLine)
+                    Text(metaLine)
                         .font(.obsCaption)
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
+
+                    if !statsLine.isEmpty {
+                        Text(statsLine)
+                            .font(.obsCaption)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(accessibilityText(for: file))
+
+                Spacer()
+
+                Menu {
+                    Button {
+                        selectedFileForMap = file
+                    } label: {
+                        Label("Auf Karte anzeigen", systemImage: "map")
+                    }
+
+                    Button {
+                        share(file)
+                    } label: {
+                        Label("Teilen", systemImage: "square.and.arrow.up")
+                    }
+
+                    Button {
+                        pendingUploadFile = file
+                        isShowingUploadConfirm = true
+                    } label: {
+                        Label("Hochladen", systemImage: "icloud.and.arrow.up")
+                    }
+                    .disabled(isUploading || !portalConfigured)
+
+                    Button(role: .destructive) {
+                        pendingDeleteFile = file
+                        isShowingDeleteConfirm = true
+                    } label: {
+                        Label("Löschen", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(accessibilityText(for: file))
-
-            Spacer()
-
-            Menu {
-                Button {
-                    share(file)
-                } label: {
-                    Label("Teilen", systemImage: "square.and.arrow.up")
-                }
-
-                Button {
-                    pendingUploadFile = file
-                    isShowingUploadConfirm = true
-                } label: {
-                    Label("Hochladen", systemImage: "icloud.and.arrow.up")
-                }
-                .disabled(isUploading || !portalConfigured)
-
-                Button(role: .destructive) {
-                    pendingDeleteFile = file
-                    isShowingDeleteConfirm = true
-                } label: {
-                    Label("Löschen", systemImage: "trash")
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.borderless)
         }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            pendingUploadFile = file
-            isShowingUploadConfirm = true
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func fileDetailFallback(for file: OBSFileInfo) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "doc.badge.gearshape")
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+
+            Text("BIN-Datei")
+                .font(.obsScreenTitle)
+
+            Text("Diese Datei kann nicht auf einer Karte angezeigt werden. Lade sie zum Portal hoch, um sie dort zu verarbeiten.")
+                .font(.obsFootnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(file.name)
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     // =====================================================
     // MARK: - Dateien laden / teilen / upload / löschen
     // =====================================================
 
-    private func loadFiles() {
-        let fm = FileManager.default
+    private func loadFilesAsync() async {
+        await MainActor.run { isLoadingFiles = true }
 
-        do {
-            let docs = try fm.url(
-                for: .documentDirectory,
-                in: .userDomainMask,
-                appropriateFor: nil,
-                create: true
-            )
+        // Dateien im Hintergrund laden
+        let loadedFiles = await Task.detached(priority: .userInitiated) { () -> [OBSFileInfo] in
+            let fm = FileManager.default
 
-            let keys: [URLResourceKey] = [
-                .isRegularFileKey,
-                .fileSizeKey,
-                .contentModificationDateKey
-            ]
+            do {
+                let docs = try fm.url(
+                    for: .documentDirectory,
+                    in: .userDomainMask,
+                    appropriateFor: nil,
+                    create: true
+                )
 
-            guard let enumerator = fm.enumerator(
-                at: docs,
-                includingPropertiesForKeys: keys,
-                options: [.skipsHiddenFiles]
-            ) else {
-                files = []
-                return
-            }
+                let keys: [URLResourceKey] = [
+                    .isRegularFileKey,
+                    .fileSizeKey,
+                    .contentModificationDateKey
+                ]
 
-            let formatter = DateFormatter()
-            formatter.dateStyle = .short
-            formatter.timeStyle = .short
-
-            var found: [OBSFileInfo] = []
-
-            for case let url as URL in enumerator {
-                let ext = url.pathExtension.lowercased()
-                guard ext == "bin" || ext == "csv" else { continue }
-
-                do {
-                    let values = try url.resourceValues(forKeys: Set(keys))
-                    guard values.isRegularFile == true else { continue }
-
-                    let size = values.fileSize.map { formatBytes($0) } ?? "–"
-                    let date = values.contentModificationDate
-                    let dateDesc = date.map { formatter.string(from: $0) } ?? "–"
-
-                    let stats = OvertakeStatsStore.load(for: url)
-
-                    let info = OBSFileInfo(
-                        url: url,
-                        name: url.lastPathComponent,
-                        sizeDescription: size,
-                        dateDescription: dateDesc,
-                        modificationDate: date,
-                        overtakeCount: stats.count,
-                        distanceKm: stats.distanceKm
-                    )
-                    found.append(info)
-                } catch {
-                    print("DataExportView: Attribute-Fehler für \(url.path): \(error)")
+                guard let enumerator = fm.enumerator(
+                    at: docs,
+                    includingPropertiesForKeys: keys,
+                    options: [.skipsHiddenFiles]
+                ) else {
+                    return []
                 }
-            }
 
-            files = found.sorted { lhs, rhs in
-                let lDate = lhs.modificationDate ?? .distantPast
-                let rDate = rhs.modificationDate ?? .distantPast
-                if lDate == rDate {
-                    return lhs.name < rhs.name
-                } else {
-                    return lDate > rDate
+                let formatter = DateFormatter()
+                formatter.dateStyle = .short
+                formatter.timeStyle = .short
+
+                var found: [OBSFileInfo] = []
+
+                for case let url as URL in enumerator {
+                    let ext = url.pathExtension.lowercased()
+                    guard ext == "bin" || ext == "csv" else { continue }
+
+                    do {
+                        let values = try url.resourceValues(forKeys: Set(keys))
+                        guard values.isRegularFile == true else { continue }
+
+                        let size = values.fileSize.map { formatBytes($0) } ?? "–"
+                        let date = values.contentModificationDate
+                        let dateDesc = date.map { formatter.string(from: $0) } ?? "–"
+
+                        let stats = OvertakeStatsStore.load(for: url)
+
+                        let info = OBSFileInfo(
+                            url: url,
+                            name: url.lastPathComponent,
+                            sizeDescription: size,
+                            dateDescription: dateDesc,
+                            modificationDate: date,
+                            overtakeCount: stats.count,
+                            distanceKm: stats.distanceKm
+                        )
+                        found.append(info)
+                    } catch {
+                        // Fehler ignorieren, weiter mit nächster Datei
+                    }
                 }
-            }
 
-        } catch {
-            print("DataExportView: loadFiles error: \(error)")
-            files = []
+                return found.sorted { lhs, rhs in
+                    let lDate = lhs.modificationDate ?? .distantPast
+                    let rDate = rhs.modificationDate ?? .distantPast
+                    if lDate == rDate {
+                        return lhs.name < rhs.name
+                    } else {
+                        return lDate > rDate
+                    }
+                }
+
+            } catch {
+                return []
+            }
+        }.value
+
+        await MainActor.run {
+            files = loadedFiles
+            isLoadingFiles = false
+        }
+    }
+
+    /// Synchrone Version für Stellen wo async nicht möglich ist
+    private func loadFilesSync() {
+        Task {
+            await loadFilesAsync()
         }
     }
 
     private func share(_ file: OBSFileInfo) {
-        let fm = FileManager.default
+        // Lade-Indikator sofort anzeigen
+        withAnimation { isPreparingShare = true }
 
-        do {
+        Task.detached(priority: .userInitiated) {
+            // Datei im Hintergrund kopieren
+            let fm = FileManager.default
             let tempDir = fm.temporaryDirectory
             let tempURL = tempDir.appendingPathComponent(file.name)
 
-            if fm.fileExists(atPath: tempURL.path) {
-                try fm.removeItem(at: tempURL)
+            do {
+                if fm.fileExists(atPath: tempURL.path) {
+                    try fm.removeItem(at: tempURL)
+                }
+                try fm.copyItem(at: file.url, to: tempURL)
+
+                // Share-Sheet präsentieren (UIKit direkt)
+                presentShareSheet(for: tempURL) {
+                    Task { @MainActor in
+                        withAnimation { isPreparingShare = false }
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    withAnimation { isPreparingShare = false }
+                }
             }
-
-            try fm.copyItem(at: file.url, to: tempURL)
-
-            shareURL = tempURL
-            isShowingShareSheet = true
-        } catch {
-            print("DataExportView: Fehler beim Vorbereiten der Datei zum Teilen: \(error)")
         }
     }
 
@@ -491,6 +614,9 @@ struct DataExportView: View {
         // Vorherigen Upload-Task abbrechen falls noch aktiv
         uploadTask?.cancel()
 
+        // Upload-State initialisieren
+        uploadingFileName = file.name
+        uploadProgress = 0.0
         isUploading = true
 
         uploadTask = Task {
@@ -499,19 +625,27 @@ struct DataExportView: View {
                     fileURL: file.url,
                     baseUrl: obsBaseUrl,
                     apiKey: obsApiKey
-                )
+                ) { progress in
+                    // Progress-Callback auf MainActor
+                    Task { @MainActor in
+                        self.uploadProgress = progress
+                    }
+                }
 
                 if result.isSuccessful {
                     uploadStatusMessage =
-                        "Datei „\(file.name)“ wurde erfolgreich hochgeladen.\n" +
+                        "Datei \"\(file.name)\" wurde erfolgreich hochgeladen.\n" +
                         "Status: \(result.statusCode)\n\nAntwort:\n\(result.responseBody)"
+                    await MainActor.run { Haptics.shared.success() }
                 } else {
                     uploadStatusMessage =
-                        "Upload der Datei „\(file.name)“ fehlgeschlagen.\n" +
+                        "Upload der Datei \"\(file.name)\" fehlgeschlagen.\n" +
                         "Status: \(result.statusCode)\n\nAntwort:\n\(result.responseBody)"
+                    await MainActor.run { Haptics.shared.error() }
                 }
             } catch {
-                uploadStatusMessage = "Upload-Fehler für „\(file.name)“: \(error.localizedDescription)"
+                uploadStatusMessage = "Upload-Fehler für \"\(file.name)\": \(error.localizedDescription)"
+                await MainActor.run { Haptics.shared.error() }
             }
 
             isUploading = false
@@ -523,7 +657,8 @@ struct DataExportView: View {
         let fm = FileManager.default
         do {
             try fm.removeItem(at: file.url)
-            loadFiles()
+            Haptics.shared.light()
+            loadFilesSync()
         } catch {
             print("DataExportView: Fehler beim Löschen von \(file.url): \(error)")
         }
@@ -538,7 +673,7 @@ struct DataExportView: View {
                 print("DataExportView: Fehler beim Löschen von \(file.url): \(error)")
             }
         }
-        loadFiles()
+        loadFilesSync()
     }
 
     private func formatBytes(_ bytes: Int) -> String {

@@ -30,6 +30,9 @@ struct PortalHomeView: View {
             // ScrollView, damit der Inhalt auch auf kleinen Geräten nicht abgeschnitten wird
             ScrollView {
                 VStack(spacing: 24) {
+                    // Statistik-Übersicht
+                    statisticsSection
+
                     // Ausgelagerte Section (computed property) für bessere Lesbarkeit
                     navigationSection
                 }
@@ -46,6 +49,11 @@ struct PortalHomeView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
+    /// Statistik-Karte mit Gesamtübersicht.
+    private var statisticsSection: some View {
+        StatisticsCardView()
+    }
+
     /// Enthält die drei Navigationskacheln.
     ///
     /// Wieso als computed property?
@@ -56,30 +64,30 @@ struct PortalHomeView: View {
 
             OBSSectionHeaderV2(
                 "Aufzeichnungen",
-                subtitle: "Fahrten hochladen, ansehen und Portal konfigurieren."
+                subtitle: "Verwalte deine Fahrten und synchronisiere sie mit dem Portal."
             )
 
-            // 1) Fahrtaufzeichnungen & Upload
+            // 1) Lokale Fahrten
             NavigationLink {
                 DataExportView()
             } label: {
                 OBSRowCardV2(
                     icon: "folder",
-                    title: "Fahrten ins OBS-Portal hochladen",
-                    subtitle: "Aufgezeichnete Fahrten verwalten und hochladen."
+                    title: "Lokale Fahrten",
+                    subtitle: "Auf diesem Gerät gespeicherte Fahrten teilen oder hochladen."
                 )
             }
             .buttonStyle(.plain)
             .obsCardStyleV2()
 
-            // 2) Meine Portal-Tracks
+            // 2) Meine Portal-Fahrten
             NavigationLink {
                 PortalTracksListView()
             } label: {
                 OBSRowCardV2(
                     icon: "list.bullet.rectangle",
-                    title: "Fahrten im OBS-Portal",
-                    subtitle: "Im Portal gespeicherte Fahrten ansehen und öffnen."
+                    title: "Meine Portal-Fahrten",
+                    subtitle: "Bereits hochgeladene Fahrten auf der Karte ansehen."
                 )
             }
             .buttonStyle(.plain)
@@ -92,7 +100,7 @@ struct PortalHomeView: View {
                 OBSRowCardV2(
                     icon: "gearshape",
                     title: "Portal-Einstellungen",
-                    subtitle: "Portal-URL, API-Key und Login-Hinweise verwalten."
+                    subtitle: "Verbindung zum OBS-Portal einrichten."
                 )
             }
             .buttonStyle(.plain)

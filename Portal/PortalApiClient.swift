@@ -316,6 +316,27 @@ final class PortalApiClient {
         return try await performRequest(url: url, decodeAs: PortalTrackData.self)
     }
 
+    /// Löscht einen Track via DELETE /api/tracks/<slug>
+    /// Benötigt API-Key für Authentifizierung
+    func deleteTrack(slug: String, apiKey: String) async throws {
+        let url = try buildURL(path: "/api/tracks/\(slug)", queryItems: nil)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("OBSUserId \(apiKey)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let http = response as? HTTPURLResponse else {
+            throw PortalApiError.noHTTPResponse
+        }
+
+        guard (200...299).contains(http.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw PortalApiError.httpError(status: http.statusCode, body: body)
+        }
+    }
+
     private func buildURL(path: String, queryItems: [URLQueryItem]?) throws -> URL {
         guard var components = URLComponents(string: baseUrl) else {
             throw PortalApiError.invalidBaseUrl

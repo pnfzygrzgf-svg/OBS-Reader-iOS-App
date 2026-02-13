@@ -9,6 +9,10 @@
 /* Begin PBXBuildFile section */
 		B303A6552EE36891002D4887 /* SwiftProtobuf in Frameworks */ = {isa = PBXBuildFile; productRef = B303A6542EE36891002D4887 /* SwiftProtobuf */; };
 		B303A6572EE36891002D4887 /* SwiftProtobufPluginLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = B303A6562EE36891002D4887 /* SwiftProtobufPluginLibrary */; };
+		B30AFDFE2F3F63AF00BE76EC /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30AFDFD2F3F63AF00BE76EC /* OnboardingView.swift */; };
+		B30AFE002F3F63C700BE76EC /* StatisticsCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30AFDFF2F3F63C700BE76EC /* StatisticsCardView.swift */; };
+		B30AFE022F3F65A000BE76EC /* LocalTrackParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30AFE012F3F65A000BE76EC /* LocalTrackParser.swift */; };
+		B30AFE042F3F65A000BE76EC /* LocalTrackDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B30AFE032F3F65A000BE76EC /* LocalTrackDetailView.swift */; };
 		B34228A62EF6E030002DD5C5 /* openbikesensor.pb.swift in Sources */ = {isa = PBXBuildFile; fileRef = B34228A52EF6E030002DD5C5 /* openbikesensor.pb.swift */; };
 		B36EDEAF2EF5A058004ADAB0 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B36EDEAE2EF5A058004ADAB0 /* WidgetKit.framework */; };
 		B36EDEB12EF5A058004ADAB0 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B36EDEB02EF5A058004ADAB0 /* SwiftUI.framework */; };
@@ -42,6 +46,9 @@
 		B3898C0A2EF6DD660005E713 /* DataExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898C012EF6DD660005E713 /* DataExportView.swift */; };
 		B3898C0E2EF6DD7B0005E713 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B3898C0B2EF6DD7B0005E713 /* Assets.xcassets */; };
 		B3898C102EF6DD7B0005E713 /* OBSClientApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3898C0D2EF6DD7B0005E713 /* OBSClientApp.swift */; };
+		B3C2B9692F3F37C60000B649 /* OBSErrorCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3C2B9682F3F37C60000B649 /* OBSErrorCardView.swift */; };
+		B3C2B96A2F3F37C60000B649 /* OBSEmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3C2B9672F3F37C60000B649 /* OBSEmptyStateView.swift */; };
+		B3C2B96B2F3F37C60000B649 /* OBSConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3C2B9662F3F37C60000B649 /* OBSConstants.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -70,6 +77,10 @@
 
 /* Begin PBXFileReference section */
 		B303A61D2EE33724002D4887 /* OBSClient.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OBSClient.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B30AFDFD2F3F63AF00BE76EC /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		B30AFDFF2F3F63C700BE76EC /* StatisticsCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatisticsCardView.swift; sourceTree = "<group>"; };
+		B30AFE012F3F65A000BE76EC /* LocalTrackParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalTrackParser.swift; sourceTree = "<group>"; };
+		B30AFE032F3F65A000BE76EC /* LocalTrackDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalTrackDetailView.swift; sourceTree = "<group>"; };
 		B34228A52EF6E030002DD5C5 /* openbikesensor.pb.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = openbikesensor.pb.swift; sourceTree = "<group>"; };
 		B36EDEAC2EF5A058004ADAB0 /* OBSWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = OBSWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B36EDEAE2EF5A058004ADAB0 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
@@ -104,6 +115,9 @@
 		B3898C0B2EF6DD7B0005E713 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B3898C0C2EF6DD7B0005E713 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B3898C0D2EF6DD7B0005E713 /* OBSClientApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OBSClientApp.swift; sourceTree = "<group>"; };
+		B3C2B9662F3F37C60000B649 /* OBSConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OBSConstants.swift; sourceTree = "<group>"; };
+		B3C2B9672F3F37C60000B649 /* OBSEmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OBSEmptyStateView.swift; sourceTree = "<group>"; };
+		B3C2B9682F3F37C60000B649 /* OBSErrorCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OBSErrorCardView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -213,6 +227,9 @@
 		B3C6D5732EF6D828009167D6 /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				B30AFDFF2F3F63C700BE76EC /* StatisticsCardView.swift */,
+				B30AFE032F3F65A000BE76EC /* LocalTrackDetailView.swift */,
+				B30AFE012F3F65A000BE76EC /* LocalTrackParser.swift */,
 				B3898BFF2EF6DD660005E713 /* ClassicCsvRecorder.swift */,
 				B3898C002EF6DD660005E713 /* ContentView.swift */,
 				B3898C012EF6DD660005E713 /* DataExportView.swift */,
@@ -262,6 +279,10 @@
 		B3C6D5772EF6D860009167D6 /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				B30AFDFD2F3F63AF00BE76EC /* OnboardingView.swift */,
+				B3C2B9662F3F37C60000B649 /* OBSConstants.swift */,
+				B3C2B9672F3F37C60000B649 /* OBSEmptyStateView.swift */,
+				B3C2B9682F3F37C60000B649 /* OBSErrorCardView.swift */,
 				B3898BE32EF6DD330005E713 /* Haptics.swift */,
 				B3898BE42EF6DD330005E713 /* OBSFont.swift */,
 				B3898BE52EF6DD330005E713 /* OBSUIV2.swift */,
@@ -392,6 +413,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B30AFE022F3F65A000BE76EC /* LocalTrackParser.swift in Sources */,
+				B30AFE042F3F65A000BE76EC /* LocalTrackDetailView.swift in Sources */,
+				B30AFE002F3F63C700BE76EC /* StatisticsCardView.swift in Sources */,
 				B3898BE12EF6DCF30005E713 /* COBS.swift in Sources */,
 				B3898BE72EF6DD330005E713 /* Haptics.swift in Sources */,
 				B38679612EF6E31D005A6667 /* PortalTracksListView.swift in Sources */,
@@ -407,6 +431,7 @@
 				B38679622EF6E324005A6667 /* PortalTrackDetailView.swift in Sources */,
 				B3898BF22EF6DD410005E713 /* LocationManager.swift in Sources */,
 				B3898BEA2EF6DD330005E713 /* SplashView.swift in Sources */,
+				B30AFDFE2F3F63AF00BE76EC /* OnboardingView.swift in Sources */,
 				B3898BE22EF6DCF30005E713 /* LossyDecoding.swift in Sources */,
 				B3898C102EF6DD7B0005E713 /* OBSClientApp.swift in Sources */,
 				B3898C052EF6DD660005E713 /* LiteBinRecorder.swift in Sources */,
@@ -420,6 +445,9 @@
 				B3898C092EF6DD660005E713 /* OBSFileWriter.swift in Sources */,
 				B38679652EF6E334005A6667 /* PortalLoginView.swift in Sources */,
 				B38679692EF6E34C005A6667 /* CookieSync.swift in Sources */,
+				B3C2B9692F3F37C60000B649 /* OBSErrorCardView.swift in Sources */,
+				B3C2B96A2F3F37C60000B649 /* OBSEmptyStateView.swift in Sources */,
+				B3C2B96B2F3F37C60000B649 /* OBSConstants.swift in Sources */,
 				B3898C0A2EF6DD660005E713 /* DataExportView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

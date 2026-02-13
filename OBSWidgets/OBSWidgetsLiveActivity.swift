@@ -10,37 +10,59 @@ import SwiftUI
 struct OBSWidgetsLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: OvertakeActivityAttributes.self) { context in
-            // MARK: - Lock Screen / Banner UI (ohne “Signal vor …”)
+            // MARK: - Lock Screen / Banner UI
 
-            HStack(spacing: 12) {
-                // Status
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(context.state.sensorActive ? Color.green : Color.gray)
-                            .frame(width: 10, height: 10)
+            VStack(spacing: 8) {
+                HStack(spacing: 12) {
+                    // Status + Timer
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(context.state.sensorActive ? Color.green : Color.gray)
+                                .frame(width: 10, height: 10)
 
-                        Text(context.state.sensorActive ? "Sensor aktiv" : "Kein Signal")
-                            .font(.subheadline.weight(.semibold))
+                            Text(context.state.sensorActive ? "Aufnahme" : "Kein Signal")
+                                .font(.subheadline.weight(.semibold))
+                        }
+
+                        // Aufnahmezeit
+                        if let startTime = context.state.recordingStartTime {
+                            Text(startTime, style: .timer)
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Spacer(minLength: 8)
+
+                    // Letzter Abstand
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("Abstand")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        if let cm = context.state.lastOvertakeCm {
+                            Text("\(cm) cm")
+                                .font(.title3.weight(.semibold))
+                                .monospacedDigit()
+                        } else {
+                            Text("—")
+                                .font(.title3.weight(.semibold))
+                        }
                     }
                 }
 
-                Spacer(minLength: 8)
-
-                // Letzter Abstand
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("Letzter Abstand")
+                // Statistik-Zeile
+                HStack(spacing: 16) {
+                    Label("\(context.state.overtakeCount)", systemImage: "car.side")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    if let cm = context.state.lastOvertakeCm {
-                        Text("\(cm) cm")
-                            .font(.title3.weight(.semibold))
-                            .monospacedDigit()
-                    } else {
-                        Text("—")
-                            .font(.title3.weight(.semibold))
-                    }
+                    Label(String(format: "%.1f km", context.state.distanceMeters / 1000.0), systemImage: "location")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+
+                    Spacer()
                 }
             }
             .padding(.horizontal)
@@ -49,35 +71,59 @@ struct OBSWidgetsLiveActivity: Widget {
             .activitySystemActionForegroundColor(.primary)
 
         } dynamicIsland: { context in
-            // MARK: - Dynamic Island UI (ohne “Signal vor …”)
+            // MARK: - Dynamic Island UI
 
             DynamicIsland {
-                // Expanded
+                // Expanded Leading: Status + Timer
                 DynamicIslandExpandedRegion(.leading) {
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(context.state.sensorActive ? Color.green : Color.gray)
-                            .frame(width: 8, height: 8)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(context.state.sensorActive ? Color.green : Color.gray)
+                                .frame(width: 8, height: 8)
 
-                        Text("OBS")
-                            .font(.caption.weight(.semibold))
+                            Text("OBS")
+                                .font(.caption.weight(.semibold))
+                        }
+
+                        if let startTime = context.state.recordingStartTime {
+                            Text(startTime, style: .timer)
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 
+                // Expanded Trailing: Abstand
                 DynamicIslandExpandedRegion(.trailing) {
-                    if let cm = context.state.lastOvertakeCm {
-                        Text("\(cm) cm")
-                            .font(.caption.weight(.semibold))
-                            .monospacedDigit()
-                    } else {
-                        Text("—")
-                            .font(.caption.weight(.semibold))
+                    VStack(alignment: .trailing, spacing: 2) {
+                        if let cm = context.state.lastOvertakeCm {
+                            Text("\(cm) cm")
+                                .font(.caption.weight(.semibold))
+                                .monospacedDigit()
+                        } else {
+                            Text("—")
+                                .font(.caption.weight(.semibold))
+                        }
+
+                        Text("\(context.state.overtakeCount) Überholungen")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
-                // Optional: ganz weglassen oder leer lassen
+                // Expanded Bottom: Distanz
                 DynamicIslandExpandedRegion(.bottom) {
-                    EmptyView()
+                    HStack {
+                        Label(
+                            String(format: "%.1f km", context.state.distanceMeters / 1000.0),
+                            systemImage: "location"
+                        )
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+
+                        Spacer()
+                    }
                 }
 
             } compactLeading: {
@@ -107,6 +153,20 @@ struct OBSWidgetsLiveActivity: Widget {
 #Preview("Live Activity", as: .content, using: OvertakeActivityAttributes(sessionId: "preview")) {
     OBSWidgetsLiveActivity()
 } contentStates: {
-    OvertakeActivityAttributes.ContentState(lastOvertakeCm: 123, sensorActive: true, lastPacketAt: Date())
-    OvertakeActivityAttributes.ContentState(lastOvertakeCm: nil, sensorActive: false, lastPacketAt: nil)
+    OvertakeActivityAttributes.ContentState(
+        lastOvertakeCm: 123,
+        sensorActive: true,
+        lastPacketAt: Date(),
+        recordingStartTime: Date(),
+        overtakeCount: 5,
+        distanceMeters: 2340.0
+    )
+    OvertakeActivityAttributes.ContentState(
+        lastOvertakeCm: nil,
+        sensorActive: false,
+        lastPacketAt: nil,
+        recordingStartTime: nil,
+        overtakeCount: 0,
+        distanceMeters: 0.0
+    )
 }

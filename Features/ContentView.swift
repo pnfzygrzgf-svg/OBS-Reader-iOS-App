@@ -6,47 +6,40 @@ import Combine
 
 /// Haupt-UI der App.
 /// Zeigt:
-/// - Logo
-/// - Verbindungsstatus + Permission-Hinweise
-/// - Live-Sensorwerte + Lenkerbreite
+/// - Kompakter Header mit Status
+/// - Hero-Anzeige Überholabstand
+/// - Live-Statistik während Aufnahme
+/// - Sensordetails (optional)
 /// - Record-Button (Start/Stop Aufnahme)
 struct ContentView: View {
 
-    /// Gemeinsamer BluetoothManager aus dem Environment (von App/Scene bereitgestellt).
     @EnvironmentObject var bt: BluetoothManager
 
-    /// Steuert, ob nach dem Stoppen kurz ein „Gespeichert“-Toast angezeigt wird.
     @State private var showSaveConfirmation = false
-
-    /// Toggle für die Anzeige der separaten Links/Rechts-Abstände.
     @State private var showSideDistances = false
-
-    /// Cancelbarer Task für den Toast-Timer.
+    @State private var showHandlebarSettings = false
     @State private var toastTask: Task<Void, Never>?
+    @State private var showingSensorInfo = false
+    @State private var showingAppInfo = false
 
-    /// Steuert, ob die Info-Ansicht als Sheet angezeigt wird.
-    @State private var showingInfo = false
-
-    // MARK: - Connection Watchdog (UI-seitig)
-    /// Zeitpunkt der letzten eingehenden Sensordaten (aus Sicht der UI).
+    // MARK: - Connection Watchdog
     @State private var lastSensorUpdate: Date = .distantPast
-
-    /// UI-Flag: Verbindung wirkt "stale" (keine Daten mehr), auch wenn bt.isConnected ggf. noch true ist.
     @State private var connectionIsStale = false
-
-    /// Wie lange ohne Daten, bis wir die Verbindung als verloren darstellen.
-    /// Synchron mit BluetoothManager (5 Sekunden)
-    private let staleAfterSeconds: TimeInterval = 5.0
+    private let staleAfterSeconds: TimeInterval = OBSTiming.sensorTimeout
 
     private var isConnectedForUI: Bool {
         bt.isConnected && !connectionIsStale
     }
 
-    private let watchdogTimer = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
-
-    // MARK: - Disconnect Notice Alert
+    // MARK: - Alerts
     @State private var showDisconnectAlert = false
     @State private var disconnectAlertText = ""
+
+    // MARK: - Recording Timer
+    @State private var recordingDuration: TimeInterval = 0
+
+    // Ein Timer für alles (Performance: nur 1 Timer statt 2)
+    private let uiTimer = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ZStack {
@@ -54,36 +47,104 @@ struct ContentView: View {
                 .ignoresSafeArea()
 
             ScrollView(.vertical) {
-                VStack(spacing: 24) {
-                    LogoView {
-                        showingInfo = true
-                    }
+                VStack(spacing: 16) {
+                    // Kompakter Header
+                    CompactHeaderView(
+                        isConnected: isConnectedForUI,
+                        isStale: connectionIsStale,
+                        deviceName: bt.connectedName,
+                        onSensorInfoTap: { showingSensorInfo = true }
+                    )
 
-                    ConnectionStatusCard(isConnectionStale: connectionIsStale)
-
+                    // Permission-Hinweise (falls nötig)
                     if !bt.isPoweredOn || !bt.hasBluetoothPermission {
                         BluetoothPermissionHintView()
                     }
 
-                    MeasurementsCardView(
-                        showSideDistances: $showSideDistances,
-                        isConnectedForUI: isConnectedForUI
+                    // Hero-Überholabstand
+                    HeroOvertakeView(
+                        distance: isConnectedForUI ? bt.overtakeDistanceCm : nil,
+                        isRecording: bt.isRecording
                     )
 
-                    HandlebarWidthView(handlebarWidthCm: $bt.handlebarWidthCm)
+                    // Live-Stats während Aufnahme
+                    if bt.isRecording {
+                        LiveRecordingStatsView(
+                            duration: recordingDuration,
+                            distanceMeters: bt.currentDistanceMeters,
+                            overtakeCount: bt.currentOvertakeCount
+                        )
+                    }
 
+                    // Sensordetails (optional aufklappbar)
+                    if showSideDistances {
+                        SideDistancesCard(
+                            leftCorrected: isConnectedForUI ? bt.leftCorrectedCm : nil,
+                            leftRaw: isConnectedForUI ? bt.leftRawCm : nil,
+                            rightCorrected: isConnectedForUI ? bt.rightCorrectedCm : nil,
+                            rightRaw: isConnectedForUI ? bt.rightRawCm : nil
+                        )
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+
+                    // Toggle für Seitenabstände
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            showSideDistances.toggle()
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: "ruler")
+                                .foregroundStyle(.secondary)
+                            Text(showSideDistances ? "Seitenabstände ausblenden" : "Seitenabstände anzeigen")
+                                .font(.obsFootnote)
+                            Spacer()
+                            Image(systemName: "chevron.down")
+                                .font(.caption.weight(.semibold))
+                                .rotationEffect(.degrees(showSideDistances ? 180 : 0))
+                        }
+                        .foregroundStyle(Color.obsAccentV2)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(Color(.secondarySystemGroupedBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+
+                    // Lenkerbreite (einklappbar)
+                    CollapsibleHandlebarView(
+                        handlebarWidthCm: $bt.handlebarWidthCm,
+                        isExpanded: $showHandlebarSettings
+                    )
+
+                    // Standort-Hinweis (falls nötig)
                     if !bt.isLocationEnabled || !bt.hasLocationAlwaysPermission {
                         LocationPermissionHintView()
                     }
+
+                    // App-Info Link (dezent am Ende)
+                    Button {
+                        showingAppInfo = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "info.circle")
+                                .font(.footnote)
+                            Text("Über diese App")
+                                .font(.obsFootnote)
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 16)
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom, 80)
-                .font(.obsBody)
+                .padding(.top, 8)
+                .padding(.bottom, 100)
             }
             .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.immediately)
 
+            // Toast
             if showSaveConfirmation {
                 SaveConfirmationToast(
                     overtakeCount: bt.currentOvertakeCount,
@@ -92,15 +153,34 @@ struct ContentView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-
         .navigationTitle("OBS Recorder")
         .navigationBarTitleDisplayMode(.inline)
 
-        .sheet(isPresented: $showingInfo) {
+        .sheet(isPresented: $showingSensorInfo) {
+            SensorInfoSheet(
+                isConnected: isConnectedForUI,
+                isStale: connectionIsStale,
+                deviceName: bt.connectedName,
+                leftCorrected: bt.leftCorrectedCm,
+                leftRaw: bt.leftRawCm,
+                rightCorrected: bt.rightCorrectedCm,
+                rightRaw: bt.rightRawCm,
+                overtakeDistance: bt.overtakeDistanceCm
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
+
+        .sheet(isPresented: $showingAppInfo) {
             NavigationStack {
                 InfoView()
-                    .navigationTitle("Info")
+                    .navigationTitle("Über diese App")
                     .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Fertig") { showingAppInfo = false }
+                        }
+                    }
             }
         }
 
@@ -108,14 +188,17 @@ struct ContentView: View {
             RecordButtonView(
                 isConnected: isConnectedForUI,
                 isRecording: bt.isRecording,
+                recordingDuration: recordingDuration,
                 onTap: handleRecordTap
             )
         }
 
-        // MARK: - Watchdog wiring
-        .onReceive(watchdogTimer) { _ in
+        // UI Timer (Watchdog + Recording in einem)
+        .onReceive(uiTimer) { _ in
             updateConnectionStaleness()
+            updateRecordingDuration()
         }
+
         .onChange(of: bt.isConnected) { _, newValue in
             if newValue {
                 lastSensorUpdate = Date()
@@ -125,24 +208,16 @@ struct ContentView: View {
             }
         }
 
-        // Wenn irgendein Sensorwert reinkommt/ändert: "lebt".
-        .onChange(of: bt.overtakeDistanceCm) { _, _ in markSensorAlive() }
-        .onChange(of: bt.leftRawCm) { _, _ in markSensorAlive() }
-        .onChange(of: bt.rightRawCm) { _, _ in markSensorAlive() }
-        .onChange(of: bt.leftCorrectedCm) { _, _ in markSensorAlive() }
-        .onChange(of: bt.rightCorrectedCm) { _, _ in markSensorAlive() }
-        .onChange(of: bt.currentDistanceMeters) { _, _ in markSensorAlive() }
+        // Nur ein onChange für Sensor-Aktivität (statt 6 separate)
+        .onChange(of: bt.lastSensorPacketAt) { _, _ in markSensorAlive() }
 
-        // Meldung aus BluetoothManager anzeigen (einmalig)
         .onChange(of: bt.userNotice) { _, newValue in
             guard let msg = newValue, !msg.isEmpty else { return }
             disconnectAlertText = msg
             showDisconnectAlert = true
         }
         .alert("Hinweis", isPresented: $showDisconnectAlert) {
-            Button("OK", role: .cancel) {
-                bt.userNotice = nil
-            }
+            Button("OK", role: .cancel) { bt.userNotice = nil }
         } message: {
             Text(disconnectAlertText)
         }
@@ -212,176 +287,372 @@ struct ContentView: View {
             }
         }
     }
+
+    private func updateRecordingDuration() {
+        guard let start = bt.recordingStartTime else {
+            if recordingDuration != 0 { recordingDuration = 0 }
+            return
+        }
+        recordingDuration = Date().timeIntervalSince(start)
+    }
 }
 
-// MARK: - Helpers
+// MARK: - Compact Header
 
-private func dashIfEmpty(_ s: String?) -> String {
-    let trimmed = (s ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-    return trimmed.isEmpty ? "-" : trimmed
-}
+struct CompactHeaderView: View {
+    let isConnected: Bool
+    let isStale: Bool
+    let deviceName: String
+    let onSensorInfoTap: () -> Void
 
-// MARK: - Logo
+    private var statusColor: Color {
+        if isStale { return .obsWarnV2 }
+        if isConnected { return .obsGoodV2 }
+        return .obsWarnV2
+    }
 
-struct LogoView: View {
+    private var statusText: String {
+        if isStale { return "Verbindung verloren" }
+        if isConnected { return deviceName.isEmpty ? "Verbunden" : deviceName }
+        return "Nicht verbunden"
+    }
 
-    let onInfoTap: () -> Void
+    private var statusIcon: String {
+        if isStale { return "antenna.radiowaves.left.and.right.slash" }
+        if isConnected { return "antenna.radiowaves.left.and.right" }
+        return "antenna.radiowaves.left.and.right.slash"
+    }
 
     var body: some View {
         HStack(spacing: 12) {
+            // Logo
             Image("OBSLogo")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 44, height: 44)
+                .frame(width: 32, height: 32)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("OBS Recorder")
-                    .font(.obsSectionTitle)
-            }
+            // Status (tappable for sensor info)
+            Button(action: onSensorInfoTap) {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 8, height: 8)
 
-            Spacer()
+                    Text(statusText)
+                        .font(.obsFootnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
 
-            Button(action: onInfoTap) {
-                Label("Info", systemImage: "info.circle")
-                    .font(.obsFootnote.weight(.semibold))
-                    .foregroundStyle(Color.obsAccentV2)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule().fill(Color(.secondarySystemFill))
-                    )
-                    .contentShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Info")
-        }
-        .obsCardStyleV2()
-    }
-}
-
-// MARK: - Connection Status (Presentation Model)
-
-struct ConnectionStatusPresentation {
-    let title: String
-    let summary: String
-    let details: String?
-    let color: Color
-    let canShowDetails: Bool
-
-    init(bt: BluetoothManager, isConnectionStale: Bool) {
-
-        if bt.isConnected && isConnectionStale {
-            title = "Verbindung verloren"
-            summary = "Keine Sensordaten mehr empfangen."
-            details = nil
-            color = .obsWarnV2
-            canShowDetails = false
-            return
-        }
-
-        if bt.isConnected {
-            title = "Mit OBS verbunden"
-            color = .obsGoodV2
-            canShowDetails = true
-
-            let name = dashIfEmpty(bt.connectedName)
-            let detected = bt.detectedDeviceType?.displayName ?? "unbekannt"
-            summary = "\(name) · \(detected)"
-
-            let mfg = dashIfEmpty(bt.manufacturerName)
-            let fw  = dashIfEmpty(bt.firmwareRevision)
-
-            details = """
-            Name: \(bt.connectedName)
-            LocalName: \(bt.connectedLocalName)
-            Detected: \(detected) · Quelle: \(bt.lastBleSource)
-            Hersteller: \(mfg) · Firmware: \(fw)
-            ID: \(bt.connectedId)
-            """
-            return
-        }
-
-        if !bt.isPoweredOn {
-            title = "Bluetooth deaktiviert"
-            summary = "Aktiviere Bluetooth, um den Sensor zu verbinden."
-            details = nil
-            color = .obsDangerV2
-            canShowDetails = false
-            return
-        }
-
-        if !bt.hasBluetoothPermission {
-            title = "Bluetooth-Zugriff erforderlich"
-            summary = "Erlaube Bluetooth-Zugriff in den iOS-Einstellungen."
-            details = nil
-            color = .obsDangerV2
-            canShowDetails = false
-            return
-        }
-
-        title = "Nicht verbunden"
-        summary = "Warten auf Sensorverbindung."
-        details = nil
-        color = .obsWarnV2
-        canShowDetails = false
-    }
-}
-
-struct ConnectionStatusCard: View {
-    @EnvironmentObject var bt: BluetoothManager
-    let isConnectionStale: Bool
-
-    @State private var showDetails = false
-
-    var body: some View {
-        let p = ConnectionStatusPresentation(bt: bt, isConnectionStale: isConnectionStale)
-
-        HStack(spacing: 12) {
-            Image(systemName: "dot.radiowaves.left.and.right")
-                .symbolVariant(.fill)
-                .foregroundStyle(p.color)
-                .font(.title3)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(p.title)
-                    .font(.obsSectionTitle)
-
-                Text(p.summary)
-                    .font(.obsFootnote)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if p.canShowDetails, let details = p.details {
-                    if showDetails {
-                        Text(details)
-                            .font(.obsFootnote)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-
-                    Button {
-                        withAnimation(.spring(response: 0.28, dampingFraction: 0.9)) {
-                            showDetails.toggle()
-                        }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Text(showDetails ? "Details ausblenden" : "Details anzeigen")
-                                .font(.obsFootnote.weight(.semibold))
-                            Image(systemName: "chevron.down")
-                                .font(.caption.weight(.semibold))
-                                .rotationEffect(.degrees(showDetails ? 180 : 0))
-                        }
-                        .foregroundStyle(Color.obsAccentV2)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.top, 2)
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
             }
+            .buttonStyle(.plain)
 
             Spacer()
         }
-        .obsCardStyleV2()
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+// MARK: - Hero Overtake Display
+
+struct HeroOvertakeView: View {
+    let distance: Int?
+    let isRecording: Bool
+
+    private let maxDistance: Double = 200.0
+
+    private var displayColor: Color {
+        guard let d = distance else { return .secondary }
+        return Color.obsOvertakeColorV2(for: d)
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            // Hauptwert
+            VStack(spacing: 4) {
+                if let distance {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text("\(distance)")
+                            .font(.system(size: 72, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(displayColor)
+                            .contentTransition(.numericText())
+                            .animation(.spring(response: 0.3), value: distance)
+
+                        Text("cm")
+                            .font(.title2)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Text("—")
+                        .font(.system(size: 72, weight: .bold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+
+                Text("Überholabstand")
+                    .font(.obsBody)
+                    .foregroundStyle(.secondary)
+            }
+
+            // Fortschrittsbalken
+            if let distance {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        // Hintergrund
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color(.tertiarySystemFill))
+
+                        // Fortschritt
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(displayColor)
+                            .frame(width: min(CGFloat(distance) / maxDistance, 1.0) * geo.size.width)
+                            .animation(.spring(response: 0.3), value: distance)
+                    }
+                }
+                .frame(height: 12)
+                .padding(.horizontal, 24)
+
+                // Skala
+                HStack {
+                    Text("0")
+                    Spacer()
+                    Text("100")
+                    Spacer()
+                    Text("200 cm")
+                }
+                .font(.obsCaption)
+                .foregroundStyle(.tertiary)
+                .padding(.horizontal, 24)
+            }
+        }
+        .padding(.vertical, 24)
+        .frame(maxWidth: .infinity)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+// MARK: - Live Recording Stats
+
+struct LiveRecordingStatsView: View {
+    let duration: TimeInterval
+    let distanceMeters: Double
+    let overtakeCount: Int
+
+    private var formattedDuration: String {
+        let total = Int(duration)
+        let h = total / 3600
+        let m = (total % 3600) / 60
+        let s = total % 60
+        if h > 0 {
+            return String(format: "%d:%02d:%02d", h, m, s)
+        }
+        return String(format: "%02d:%02d", m, s)
+    }
+
+    private var formattedDistance: String {
+        String(format: "%.2f", distanceMeters / 1000.0)
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            // Recording Indicator
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Color.obsDangerV2)
+                    .frame(width: 10, height: 10)
+                    .modifier(PulsingModifier())
+
+                Text("REC")
+                    .font(.obsCaption.weight(.bold))
+                    .foregroundStyle(Color.obsDangerV2)
+
+                Text(formattedDuration)
+                    .font(.obsBody.monospacedDigit())
+            }
+            .frame(maxWidth: .infinity)
+
+            Divider()
+                .frame(height: 24)
+
+            // Distance
+            HStack(spacing: 4) {
+                Image(systemName: "point.topleft.down.to.point.bottomright.curvepath")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("\(formattedDistance) km")
+                    .font(.obsBody.monospacedDigit())
+            }
+            .frame(maxWidth: .infinity)
+
+            Divider()
+                .frame(height: 24)
+
+            // Events
+            HStack(spacing: 4) {
+                Image(systemName: "car.side")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("\(overtakeCount)")
+                    .font(.obsBody.monospacedDigit())
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 8)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+/// Pulsierender Effekt für Recording-Indikator
+struct PulsingModifier: ViewModifier {
+    @State private var isPulsing = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(isPulsing ? 0.4 : 1.0)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                    isPulsing = true
+                }
+            }
+    }
+}
+
+// MARK: - Side Distances Card
+
+struct SideDistancesCard: View {
+    let leftCorrected: Int?
+    let leftRaw: Int?
+    let rightCorrected: Int?
+    let rightRaw: Int?
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 24) {
+            SideDistanceColumn(
+                title: "Links",
+                corrected: leftCorrected,
+                raw: leftRaw
+            )
+            .frame(maxWidth: .infinity)
+
+            Divider()
+
+            SideDistanceColumn(
+                title: "Rechts",
+                corrected: rightCorrected,
+                raw: rightRaw
+            )
+            .frame(maxWidth: .infinity)
+        }
+        .padding(16)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+struct SideDistanceColumn: View {
+    let title: String
+    let corrected: Int?
+    let raw: Int?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.obsCaption)
+                .foregroundStyle(.secondary)
+
+            if let corrected {
+                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                    Text("\(corrected)")
+                        .font(.title2.weight(.semibold).monospacedDigit())
+                    Text("cm")
+                        .font(.obsFootnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                ProgressView(value: min(Double(corrected), 200), total: 200)
+                    .tint(Color.obsOvertakeColorV2(for: corrected))
+            } else {
+                Text("—")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            if let raw {
+                Text("Roh: \(raw) cm")
+                    .font(.obsCaption)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+}
+
+// MARK: - Collapsible Handlebar
+
+struct CollapsibleHandlebarView: View {
+    @Binding var handlebarWidthCm: Int
+    @Binding var isExpanded: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header (immer sichtbar)
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack {
+                    Image(systemName: "bicycle")
+                        .foregroundStyle(.secondary)
+
+                    Text("Lenkerbreite")
+                        .font(.obsBody)
+
+                    Spacer()
+
+                    Text("\(handlebarWidthCm) cm")
+                        .font(.obsBody.monospacedDigit())
+                        .foregroundStyle(.secondary)
+
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(.plain)
+
+            // Expanded Content
+            if isExpanded {
+                Divider()
+                    .padding(.horizontal, 16)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Stepper(value: $handlebarWidthCm, in: 30...120, step: 1) {
+                        EmptyView()
+                    }
+                    .labelsHidden()
+
+                    Text("Wird zur Berechnung des Überholabstands verwendet (Sensorabstand minus halbe Lenkerbreite).")
+                        .font(.obsCaption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(16)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -429,19 +700,9 @@ struct LocationPermissionHintView: View {
 
     private var message: String {
         if !bt.isLocationEnabled {
-            return """
-Damit deine Fahrten vollständig aufgezeichnet werden können, müssen die Standortdienste (GPS) aktiviert sein.
-Aktiviere sie in den iOS-Einstellungen unter „Datenschutz & Sicherheit > Ortungsdienste“.
-"""
+            return "Aktiviere die Standortdienste in den iOS-Einstellungen unter \"Datenschutz & Sicherheit > Ortungsdienste\"."
         }
-
-        return """
-Damit deine Fahrten auch bei ausgeschaltetem Bildschirm und im Hintergrund aufgezeichnet werden können, braucht diese App „Immer“ Zugriff auf deinen Standort.
-
-Tippe unten auf „Einstellungen öffnen“ und stelle unter
-„Ortungsdienste > OBS Recorder > Zugriff auf Standort“
-die Option auf „Immer“.
-"""
+        return "Für Hintergrund-Aufnahmen benötigt die App \"Immer\"-Zugriff auf den Standort. Stelle dies in den Einstellungen ein."
     }
 }
 
@@ -485,250 +746,9 @@ struct BluetoothPermissionHintView: View {
 
     private var message: String {
         if !bt.isPoweredOn {
-            return "Aktiviere Bluetooth in den Systemeinstellungen, damit sich dein OBS-Gerät verbinden und Messwerte senden kann."
+            return "Aktiviere Bluetooth in den Systemeinstellungen."
         }
-        return "Damit sich dein OBS-Gerät verbinden kann, benötigt diese App Zugriff auf Bluetooth. Erlaube den Zugriff in den iOS-Einstellungen."
-    }
-}
-
-// MARK: - Measurements Card
-
-struct MeasurementsCardView: View {
-    @EnvironmentObject var bt: BluetoothManager
-    @Binding var showSideDistances: Bool
-
-    let isConnectedForUI: Bool
-
-    private var isWaitingForSideValues: Bool {
-        showSideDistances
-        && isConnectedForUI
-        && bt.leftRawCm == nil
-        && bt.rightRawCm == nil
-        && bt.leftCorrectedCm == nil
-        && bt.rightCorrectedCm == nil
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Sensorwerte")
-                    .font(.obsSectionTitle)
-
-                Spacer()
-
-                Toggle("Abstände anzeigen", isOn: $showSideDistances)
-                    .labelsHidden()
-                    .accessibilityLabel("Abstände links und rechts anzeigen")
-            }
-
-            if showSideDistances && (!isConnectedForUI || isWaitingForSideValues) {
-                SensorValuesSkeletonView()
-                    .transition(.opacity)
-            }
-
-            if showSideDistances {
-                HStack(alignment: .top, spacing: 32) {
-                    SensorValueView(
-                        title: "Abstand links",
-                        corrected: isConnectedForUI ? bt.leftCorrectedCm : nil,
-                        raw: isConnectedForUI ? bt.leftRawCm : nil
-                    )
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .redacted(reason: isWaitingForSideValues ? .placeholder : [])
-
-                    SensorValueView(
-                        title: "Abstand rechts",
-                        corrected: isConnectedForUI ? bt.rightCorrectedCm : nil,
-                        raw: isConnectedForUI ? bt.rightRawCm : nil
-                    )
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .redacted(reason: isWaitingForSideValues ? .placeholder : [])
-                }
-            }
-
-            OvertakeDistanceView(distance: isConnectedForUI ? bt.overtakeDistanceCm : nil)
-        }
-        .obsCardStyleV2()
-    }
-}
-
-private struct SensorValuesSkeletonView: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color(.tertiarySystemFill))
-                .frame(height: 14)
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color(.tertiarySystemFill))
-                .frame(height: 8)
-        }
-        .redacted(reason: .placeholder)
-    }
-}
-
-// MARK: - Sensor Value Views
-
-struct SensorValueView: View {
-    let title: String
-    let corrected: Int?
-    let raw: Int?
-
-    @State private var showMeasuredInfo = false
-    @State private var showCalculatedInfo = false
-
-    private let maxDistance = 200.0
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.obsSectionTitle)
-
-            if let corrected {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text("\(corrected)")
-                            .font(.obsValue)
-                            .monospacedDigit()
-                        Text("cm")
-                            .font(.obsBody)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    ProgressView(
-                        value: min(Double(corrected), maxDistance),
-                        total: maxDistance
-                    )
-                    .tint(Color.obsOvertakeColorV2(for: corrected))
-
-                    HStack(spacing: 4) {
-                        Text("Berechnet")
-                            .font(.obsFootnote)
-                            .foregroundStyle(.secondary)
-
-                        Button { showCalculatedInfo = true } label: {
-                            Image(systemName: "info.circle")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Info: Berechneter Abstand")
-                    }
-                    .alert("Berechneter Abstand", isPresented: $showCalculatedInfo) {
-                        Button("OK", role: .cancel) {}
-                    } message: {
-                        Text("„Berechnet“ berücksichtigt die Lenkerbreite: gemessener Abstand minus halbe Lenkerbreite.")
-                    }
-                }
-            } else {
-                Text("Noch kein berechneter Wert.")
-                    .font(.obsFootnote)
-                    .foregroundStyle(.secondary)
-            }
-
-            if let raw {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 4) {
-                        Text("Gemessen (Rohwert)")
-                            .font(.obsFootnote)
-                            .foregroundStyle(.secondary)
-
-                        Button { showMeasuredInfo = true } label: {
-                            Image(systemName: "info.circle")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Info: Gemessener Rohwert")
-                    }
-
-                    HStack(spacing: 4) {
-                        Text("\(raw)")
-                            .font(.obsFootnote)
-                            .monospacedDigit()
-                        Text("cm")
-                            .font(.obsFootnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .alert("Gemessener Rohwert", isPresented: $showMeasuredInfo) {
-                    Button("OK", role: .cancel) {}
-                } message: {
-                    Text("„Gemessen (Rohwert)“ ist der Abstand, den der Sensor erfasst – ohne Korrektur um die Lenkerbreite.")
-                }
-            } else {
-                Text("Noch kein Rohwert gemessen.")
-                    .font(.obsFootnote)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-}
-
-struct OvertakeDistanceView: View {
-    let distance: Int?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Überholabstand")
-                .font(.obsScreenTitle)
-
-            if let distance {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(Color.obsOvertakeColorV2(for: distance))
-                        .frame(width: 12, height: 12)
-
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text("\(distance)")
-                            .font(.obsValue)
-                            .monospacedDigit()
-                        Text("cm")
-                            .font(.obsBody)
-                            .foregroundStyle(.secondary)
-                    }
-                    .accessibilityValue("\(distance) Zentimeter")
-                }
-            } else {
-                Text("Noch kein Überholabstand berechnet.")
-                    .font(.obsFootnote)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-}
-
-// MARK: - Lenkerbreite
-
-struct HandlebarWidthView: View {
-    @Binding var handlebarWidthCm: Int
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Lenkerbreite")
-                .font(.obsSectionTitle)
-
-            HStack {
-                Text("\(handlebarWidthCm)")
-                    .monospacedDigit()
-                    .font(.obsBody)
-
-                Text("cm")
-                    .font(.obsBody)
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-            }
-
-            Stepper(value: $handlebarWidthCm, in: 30...120, step: 1) {
-                EmptyView()
-            }
-            .labelsHidden()
-
-            Text("Wird zur Berechnung des Überholabstands verwendet.")
-                .font(.obsFootnote)
-                .foregroundStyle(.secondary)
-        }
-        .obsCardStyleV2()
+        return "Erlaube Bluetooth-Zugriff in den iOS-Einstellungen."
     }
 }
 
@@ -737,18 +757,52 @@ struct HandlebarWidthView: View {
 struct RecordButtonView: View {
     let isConnected: Bool
     let isRecording: Bool
+    let recordingDuration: TimeInterval
     let onTap: () -> Void
+
+    private var formattedDuration: String {
+        let totalSeconds = Int(recordingDuration)
+        let minutes = totalSeconds / 60
+        let seconds = totalSeconds % 60
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
 
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 12) {
-                Image(systemName: isRecording ? "stop.fill" : "record.circle.fill")
-                    .font(.title3)
+                // Icon mit pulsierendem Effekt während der Aufnahme
+                ZStack {
+                    if isRecording {
+                        Circle()
+                            .fill(Color.white.opacity(0.3))
+                            .frame(width: 32, height: 32)
+                            .scaleEffect(isRecording ? 1.2 : 1.0)
+                            .animation(
+                                .easeInOut(duration: 1.0).repeatForever(autoreverses: true),
+                                value: isRecording
+                            )
+                    }
+
+                    Image(systemName: isRecording ? "stop.fill" : "record.circle.fill")
+                        .font(.title3)
+                }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(isRecording ? "Aufnahme stoppen" : "Aufnahme starten")
-                        .font(.obsSectionTitle)
-                        .fontWeight(.semibold)
+                    HStack(spacing: 8) {
+                        Text(isRecording ? "Aufnahme stoppen" : "Aufnahme starten")
+                            .font(.obsSectionTitle)
+                            .fontWeight(.semibold)
+
+                        if isRecording {
+                            Text(formattedDuration)
+                                .font(.obsFootnote)
+                                .monospacedDigit()
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.white.opacity(0.2))
+                                .clipShape(Capsule())
+                        }
+                    }
 
                     if !isConnected {
                         Text("Sensor nicht verbunden")
@@ -793,20 +847,192 @@ struct SaveConfirmationToast: View {
         VStack {
             Spacer()
 
-            VStack(spacing: 4) {
-                Text("Aufnahme gespeichert.")
-                    .font(.obsFootnote.weight(.semibold))
+            HStack(spacing: 12) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.green)
 
-                Text("\(overtakeCount) Überholvorgänge · \(distanceText) km")
-                    .font(.obsFootnote)
-                    .monospacedDigit()
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Aufnahme gespeichert")
+                        .font(.obsFootnote.weight(.semibold))
+
+                    Text("\(overtakeCount) Events · \(distanceText) km")
+                        .font(.obsCaption)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
             .background(.ultraThinMaterial)
-            .cornerRadius(12)
-            .shadow(radius: 4)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .shadow(radius: 8)
             .padding(.bottom, 120)
+        }
+    }
+}
+
+// MARK: - Sensor Info Sheet
+
+struct SensorInfoSheet: View {
+    let isConnected: Bool
+    let isStale: Bool
+    let deviceName: String
+    let leftCorrected: Int?
+    let leftRaw: Int?
+    let rightCorrected: Int?
+    let rightRaw: Int?
+    let overtakeDistance: Int?
+
+    @Environment(\.dismiss) private var dismiss
+
+    private var statusColor: Color {
+        if isStale { return .obsWarnV2 }
+        if isConnected { return .obsGoodV2 }
+        return .obsDangerV2
+    }
+
+    private var statusText: String {
+        if isStale { return "Verbindung unterbrochen" }
+        if isConnected { return "Verbunden" }
+        return "Nicht verbunden"
+    }
+
+    private var statusDescription: String {
+        if isStale {
+            return "Der Sensor antwortet nicht mehr. Stelle sicher, dass er eingeschaltet und in Reichweite ist."
+        }
+        if isConnected {
+            return "Der Sensor sendet Daten. Du kannst eine Aufnahme starten."
+        }
+        return "Schalte den OpenBikeSensor ein. Die Verbindung wird automatisch hergestellt."
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                // Connection Status Section
+                Section {
+                    HStack(spacing: 12) {
+                        Image(systemName: isConnected ? "antenna.radiowaves.left.and.right" : "antenna.radiowaves.left.and.right.slash")
+                            .font(.title2)
+                            .foregroundStyle(statusColor)
+                            .frame(width: 40)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(statusText)
+                                .font(.obsBody.weight(.semibold))
+
+                            if isConnected && !deviceName.isEmpty {
+                                Text(deviceName)
+                                    .font(.obsFootnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Spacer()
+
+                        Circle()
+                            .fill(statusColor)
+                            .frame(width: 12, height: 12)
+                    }
+                    .padding(.vertical, 4)
+
+                    Text(statusDescription)
+                        .font(.obsFootnote)
+                        .foregroundStyle(.secondary)
+                } header: {
+                    Text("Verbindungsstatus")
+                }
+
+                // Live Data Section (only when connected)
+                if isConnected && !isStale {
+                    Section {
+                        if let distance = overtakeDistance {
+                            sensorDataRow(
+                                label: "Überholabstand",
+                                value: "\(distance) cm",
+                                icon: "arrow.left.and.right"
+                            )
+                        }
+
+                        if let left = leftCorrected {
+                            sensorDataRow(
+                                label: "Links (korrigiert)",
+                                value: "\(left) cm",
+                                icon: "arrow.left"
+                            )
+                        }
+
+                        if let leftR = leftRaw {
+                            sensorDataRow(
+                                label: "Links (roh)",
+                                value: "\(leftR) cm",
+                                icon: "arrow.left",
+                                secondary: true
+                            )
+                        }
+
+                        if let right = rightCorrected {
+                            sensorDataRow(
+                                label: "Rechts (korrigiert)",
+                                value: "\(right) cm",
+                                icon: "arrow.right"
+                            )
+                        }
+
+                        if let rightR = rightRaw {
+                            sensorDataRow(
+                                label: "Rechts (roh)",
+                                value: "\(rightR) cm",
+                                icon: "arrow.right",
+                                secondary: true
+                            )
+                        }
+                    } header: {
+                        Text("Aktuelle Messwerte")
+                    }
+                }
+
+                // Help Section
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Verbindungsprobleme?")
+                            .font(.obsBody.weight(.semibold))
+
+                        Text("1. Stelle sicher, dass Bluetooth aktiviert ist\n2. Schalte den Sensor aus und wieder ein\n3. Warte einige Sekunden")
+                            .font(.obsFootnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+            .navigationTitle("Sensor-Info")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Fertig") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func sensorDataRow(label: String, value: String, icon: String, secondary: Bool = false) -> some View {
+        HStack {
+            Image(systemName: icon)
+                .font(.body)
+                .foregroundStyle(secondary ? .tertiary : .secondary)
+                .frame(width: 24)
+
+            Text(label)
+                .font(.obsBody)
+                .foregroundStyle(secondary ? .secondary : .primary)
+
+            Spacer()
+
+            Text(value)
+                .font(.obsBody.monospacedDigit())
+                .foregroundStyle(secondary ? .secondary : .primary)
         }
     }
 }

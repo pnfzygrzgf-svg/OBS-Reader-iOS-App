@@ -94,17 +94,30 @@ struct PortalConfigCardView: View {
                     .font(.obsCaption)
                     .foregroundStyle(.secondary)
 
-                TextField(
-                    "",
-                    text: $draftBaseUrl,
-                    prompt: Text(exampleBaseUrl)
-                        .foregroundStyle(.secondary)
-                )
-                .keyboardType(.URL)
-                .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
-                .textFieldStyle(.roundedBorder)
-                .font(.obsBody)
+                HStack(spacing: 8) {
+                    TextField(
+                        "",
+                        text: $draftBaseUrl,
+                        prompt: Text(exampleBaseUrl)
+                            .foregroundStyle(.secondary)
+                    )
+                    .keyboardType(.URL)
+                    .textInputAutocapitalization(.never)
+                    .disableAutocorrection(true)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.obsBody)
+
+                    if !draftBaseUrl.isEmpty {
+                        Button {
+                            draftBaseUrl = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Portal-URL löschen")
+                    }
+                }
             }
 
             // API-Key Eingabe
@@ -113,9 +126,22 @@ struct PortalConfigCardView: View {
                     .font(.obsCaption)
                     .foregroundStyle(.secondary)
 
-                SecureField("API-Key eintragen", text: $draftApiKey)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.obsBody)
+                HStack(spacing: 8) {
+                    SecureField("API-Key eintragen", text: $draftApiKey)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.obsBody)
+
+                    if !draftApiKey.isEmpty {
+                        Button {
+                            draftApiKey = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("API-Key löschen")
+                    }
+                }
             }
 
             // Validierungs-/Hilfetext
@@ -158,9 +184,13 @@ struct PortalConfigCardView: View {
         savedBaseUrl = draftBaseUrl.trimmingCharacters(in: .whitespacesAndNewlines)
         savedApiKey  = draftApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        Haptics.shared.success()
         showSavedHint = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-            showSavedHint = false
+        Task {
+            try? await Task.sleep(for: .seconds(OBSTiming.hintHideDelay))
+            await MainActor.run {
+                showSavedHint = false
+            }
         }
     }
 }

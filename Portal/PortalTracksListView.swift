@@ -95,6 +95,10 @@ struct PortalTracksListView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(Color(.systemGroupedBackground))
+        .refreshable {
+            Haptics.shared.light()
+            await load()
+        }
         .navigationTitle("Fahrten im OBS-Portal")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

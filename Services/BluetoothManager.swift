@@ -99,6 +99,7 @@ final class BluetoothManager: NSObject, ObservableObject {
     @Published var isConnected: Bool = false
 
     @Published var isRecording: Bool = false
+    @Published var recordingStartTime: Date?
 
     @Published var hasBluetoothPermission: Bool = true
 
@@ -239,6 +240,66 @@ final class BluetoothManager: NSObject, ObservableObject {
     }
 
     // -------------------------------------------------
+    // MARK: Throttled UI Updates (Performance)
+    // -------------------------------------------------
+
+    /// Letzte UI-Aktualisierung für Sensor-Werte
+    private var lastSensorUIUpdate: Date = .distantPast
+
+    /// Minimum-Intervall zwischen UI-Updates (100ms = max 10 Updates/Sekunde)
+    private let sensorUIUpdateInterval: TimeInterval = 0.1
+
+    /// Gepufferte Sensor-Werte für das nächste UI-Update
+    private var pendingLeftRaw: Int?
+    private var pendingLeftCorrected: Int?
+    private var pendingRightRaw: Int?
+    private var pendingRightCorrected: Int?
+    private var pendingOvertakeDistance: Int?
+    private var hasPendingSensorUpdate = false
+
+    /// Aktualisiert Sensor-Werte mit Throttling (max 10x pro Sekunde)
+    private func throttledSensorUpdate(
+        leftRaw: Int? = nil,
+        leftCorrected: Int? = nil,
+        rightRaw: Int? = nil,
+        rightCorrected: Int? = nil,
+        overtakeDistance: Int? = nil
+    ) {
+        // Werte puffern
+        if leftRaw != nil { pendingLeftRaw = leftRaw }
+        if leftCorrected != nil { pendingLeftCorrected = leftCorrected }
+        if rightRaw != nil { pendingRightRaw = rightRaw }
+        if rightCorrected != nil { pendingRightCorrected = rightCorrected }
+        if overtakeDistance != nil { pendingOvertakeDistance = overtakeDistance }
+        hasPendingSensorUpdate = true
+
+        // Prüfen ob genug Zeit vergangen ist
+        let now = Date()
+        guard now.timeIntervalSince(lastSensorUIUpdate) >= sensorUIUpdateInterval else {
+            return
+        }
+
+        // UI aktualisieren
+        flushPendingSensorUpdates()
+    }
+
+    /// Schreibt gepufferte Sensor-Werte in die @Published Properties
+    private func flushPendingSensorUpdates() {
+        guard hasPendingSensorUpdate else { return }
+
+        lastSensorUIUpdate = Date()
+        hasPendingSensorUpdate = false
+
+        ui { [self] in
+            if let v = pendingLeftRaw { self.leftRawCm = v }
+            if let v = pendingLeftCorrected { self.leftCorrectedCm = v }
+            if let v = pendingRightRaw { self.rightRawCm = v }
+            if let v = pendingRightCorrected { self.rightCorrectedCm = v }
+            if let v = pendingOvertakeDistance { self.overtakeDistanceCm = v }
+        }
+    }
+
+    // -------------------------------------------------
     // MARK: Reset bei Disconnect ( Live + Count/Distance auf 0)
     // -------------------------------------------------
 
@@ -342,6 +403,7 @@ final class BluetoothManager: NSObject, ObservableObject {
             self.lastOvertakeAt = nil
 
             self.isRecording = true
+            self.recordingStartTime = Date()
         }
 
         recordingDeviceType = t
@@ -371,7 +433,10 @@ final class BluetoothManager: NSObject, ObservableObject {
                     sessionId: sessionId,
                     lastOvertakeCm: self.overtakeDistanceCm,
                     sensorActive: self.sensorActiveNow,
-                    lastPacketAt: self.lastSensorPacketAt
+                    lastPacketAt: self.lastSensorPacketAt,
+                    recordingStartTime: self.recordingStartTime,
+                    overtakeCount: self.currentOvertakeCount,
+                    distanceMeters: self.currentDistanceMeters
                 )
             }
         }
@@ -421,7 +486,10 @@ final class BluetoothManager: NSObject, ObservableObject {
             }
         }
 
-        ui { self.isRecording = false }
+        ui {
+            self.isRecording = false
+            self.recordingStartTime = nil
+        }
 
         if #available(iOS 16.1, *) {
             Task { @MainActor in
@@ -607,7 +675,8 @@ final class BluetoothManager: NSObject, ObservableObject {
 
         central.cancelPeripheralConnection(p)
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(OBSTiming.reconnectDelay))
             guard let self else { return }
             guard self.isForcingDisconnect else { return }
 
@@ -734,8 +803,9 @@ extension BluetoothManager: CBCentralManagerDelegate {
 
         peripheral.discoverServices(nil)
 
-        // Timeout für Service Discovery (5 Sekunden)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
+        // Timeout für Service Discovery
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(OBSTiming.sensorTimeout))
             guard let self else { return }
             // Nur trennen wenn verbunden aber kein Gerätetyp erkannt
             guard self.isConnected, self.detectedDeviceType == nil else { return }
@@ -868,7 +938,8 @@ extension BluetoothManager: CBPeripheralDelegate {
         
         // Auto-Restart Recording nach Reconnect (sobald Gerätetyp erkannt)
         if hasClassic || hasLite {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(OBSTiming.debounceDelay))
                 self?.tryAutoRestartRecording()
             }
         }
@@ -1011,11 +1082,10 @@ extension BluetoothManager: CBPeripheralDelegate {
     // -------------------------------------------------
 
     private func handleLiteUpdate(_ data: Data) {
-        print("BLE Lite chunk (\(data.count) Bytes): \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
+        // Debug-Logs entfernt für Performance
 
         do {
             let event = try Openbikesensor_Event(serializedData: data)
-            print("Protobuf decode OK (Lite)")
 
             ui {
                 self.lastEvent = event
@@ -1072,7 +1142,7 @@ extension BluetoothManager: CBPeripheralDelegate {
     func handleClassicDistanceUpdate(_ data: Data) {
         guard let packet = parseClassicPacket(data) else { return }
 
-        print("BLE Classic distance (\(data.count) Bytes) clock=\(packet.clockMs) left=\(packet.leftCm)cm right=\(packet.rightCm)cm")
+        // Debug-Log entfernt für Performance
 
         let leftMeters: Double?  = (packet.leftCm  == 0xFFFF) ? nil : Double(packet.leftCm)  / 100.0
         let rightMeters: Double? = (packet.rightCm == 0xFFFF) ? nil : Double(packet.rightCm) / 100.0
@@ -1125,7 +1195,7 @@ extension BluetoothManager: CBPeripheralDelegate {
     func handleClassicButtonUpdate(_ data: Data) {
         guard let packet = parseClassicPacket(data) else { return }
 
-        print("BLE Classic button (\(data.count) Bytes) clock=\(packet.clockMs) left=\(packet.leftCm)cm right=\(packet.rightCm)cm")
+        // Debug-Log entfernt für Performance
 
         ui { self.handleUserInputPreview() }
 
@@ -1144,15 +1214,11 @@ extension BluetoothManager: CBPeripheralDelegate {
     }
 
     private func handleClassicOffsetUpdate(_ data: Data) {
-        print("BLE Classic offset bytes: \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
+        // Offset-Daten werden aktuell nicht verwendet
     }
 
     private func handleClassicTrackIdUpdate(_ data: Data) {
-        if let trackId = String(data: data, encoding: .utf8) {
-            print("BLE Classic trackId: \(trackId)")
-        } else {
-            print("BLE Classic trackId (nicht lesbar): \(data)")
-        }
+        // Track-ID wird aktuell nicht verwendet
     }
 
     // -------------------------------------------------
@@ -1162,19 +1228,16 @@ extension BluetoothManager: CBPeripheralDelegate {
     private func handleBatteryUpdate(_ data: Data) {
         guard let level = data.first else { return }
         ui { self.batteryLevelPercent = Int(level) }
-        print("Battery level: \(level)%")
     }
 
     private func handleFirmwareUpdate(_ data: Data) {
         let fw = String(data: data, encoding: .utf8) ?? ""
         ui { self.firmwareRevision = fw }
-        print("Firmware revision: \(fw)")
     }
 
     private func handleManufacturerUpdate(_ data: Data) {
         let m = String(data: data, encoding: .utf8) ?? ""
         ui { self.manufacturerName = m }
-        print("Manufacturer name: \(m)")
     }
 
     // -------------------------------------------------
@@ -1218,7 +1281,16 @@ extension BluetoothManager: CBPeripheralDelegate {
         let rawMeters = Double(dm.distance)
         let rawCm = Int((rawMeters * 100.0).rounded())
 
-        guard rawMeters > 0.0, rawMeters < 5.0 else { return }
+        guard rawMeters > 0.0 else { return }
+
+        if rawMeters >= 5.0 {
+            if dm.sourceID == 1 {
+                leftDistanceText = "Links (ID 1): ---"
+            } else {
+                rightDistanceText = "Rechts (ID \(dm.sourceID)): ---"
+            }
+            return
+        }
 
         let handlebarHalf = Double(handlebarWidthCm) / 2.0
         let correctedCm = max(0, Int((Double(rawCm) - handlebarHalf).rounded()))
@@ -1233,13 +1305,11 @@ extension BluetoothManager: CBPeripheralDelegate {
         let infoText = "Gemessen: \(rawCm) cm  |  berechnet: \(correctedCm) cm"
 
         if dm.sourceID == 1 {
-            leftRawCm = rawCm
-            leftCorrectedCm = correctedCm
             leftDistanceText = "Links (ID 1): \(infoText)"
+            throttledSensorUpdate(leftRaw: rawCm, leftCorrected: correctedCm)
         } else {
-            rightRawCm = rawCm
-            rightCorrectedCm = correctedCm
             rightDistanceText = "Rechts (ID \(dm.sourceID)): \(infoText)"
+            throttledSensorUpdate(rightRaw: rawCm, rightCorrected: correctedCm)
         }
     }
 
@@ -1284,7 +1354,10 @@ extension BluetoothManager: CBPeripheralDelegate {
                 await live.update(
                     lastOvertakeCm: cm,
                     sensorActive: active,
-                    lastPacketAt: lastAt
+                    lastPacketAt: lastAt,
+                    recordingStartTime: self.recordingStartTime,
+                    overtakeCount: self.currentOvertakeCount,
+                    distanceMeters: self.currentDistanceMeters
                 )
             }
         }

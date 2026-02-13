@@ -13,6 +13,7 @@ struct OBSClientApp: App {
     @StateObject private var locationManager: LocationManager
 
     @State private var showSplash = true
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
 
     // =====================================================
     // MARK: - Init
@@ -77,12 +78,24 @@ struct OBSClientApp: App {
                         .transition(.opacity)
                         .zIndex(1)
                 }
-            }
-            .onAppear {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                    withAnimation(.easeOut(duration: 0.5)) {
-                        showSplash = false
+
+                // -------------------------------------------------
+                // Onboarding (liegt über allem)
+                // -------------------------------------------------
+                if !hasSeenOnboarding && !showSplash {
+                    OnboardingView {
+                        withAnimation(.easeInOut(duration: 0.4)) {
+                            hasSeenOnboarding = true
+                        }
                     }
+                    .transition(.opacity)
+                    .zIndex(2)
+                }
+            }
+            .task {
+                try? await Task.sleep(for: .seconds(OBSTiming.splashDuration))
+                withAnimation(.easeOut(duration: 0.5)) {
+                    showSplash = false
                 }
             }
         }

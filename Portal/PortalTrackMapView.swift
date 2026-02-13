@@ -154,19 +154,8 @@ struct PortalTrackMapView: UIViewRepresentable {
 
             // Marker-Farbe & Glyph je nach Abstand (distance) festlegen
             if let distance = ann.event.distance {
-                // Farbskala nach „kritisch“ → „ok“
-                // (Schwellenwerte in Metern)
-                if distance <= 1.10 {
-                    view.markerTintColor = UIColor.systemRed
-                } else if distance <= 1.30 {
-                    view.markerTintColor = UIColor.systemOrange
-                } else if distance <= 1.50 {
-                    view.markerTintColor = UIColor.systemYellow
-                } else if distance <= 1.70 {
-                    view.markerTintColor = UIColor.systemGreen
-                } else {
-                    view.markerTintColor = UIColor.systemGreen.withAlphaComponent(0.8)
-                }
+                // Farbskala nach „kritisch" → „ok" (zentralisiert in OBSOvertakeThresholds)
+                view.markerTintColor = OBSOvertakeThresholds.uiColor(for: distance)
 
                 // Text im Marker (Glyph) – hier: Distanz mit 2 Nachkommastellen
                 view.glyphText = String(format: "%.2f", distance)

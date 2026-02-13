@@ -4,6 +4,28 @@ import SwiftUI
 import Foundation
 
 // =====================================================
+// MARK: - Spacing System V2
+// =====================================================
+
+/// Einheitliches Spacing-System für konsistente Abstände
+enum OBSSpacing {
+    /// 4pt - Extra klein
+    static let xs: CGFloat = 4
+    /// 6pt - Klein
+    static let sm: CGFloat = 6
+    /// 8pt - Medium
+    static let md: CGFloat = 8
+    /// 12pt - Groß
+    static let lg: CGFloat = 12
+    /// 16pt - Extra groß (Standard-Padding)
+    static let xl: CGFloat = 16
+    /// 24pt - XXL
+    static let xxl: CGFloat = 24
+    /// 32pt - XXXL
+    static let xxxl: CGFloat = 32
+}
+
+// =====================================================
 // MARK: - Theme Colors (V2) – redeclaration-sicher
 // =====================================================
 
@@ -236,4 +258,88 @@ extension Optional where Wrapped == String {
         else { return "-" }
         return s
     }
+}
+
+// =====================================================
+// MARK: - Button Styles V2
+// =====================================================
+
+/// Primärer Button-Style (prominent, gefüllt)
+struct OBSPrimaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.obsBody.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, OBSSpacing.xl)
+            .padding(.vertical, OBSSpacing.lg)
+            .background(
+                RoundedRectangle(cornerRadius: OBSCornerRadius.medium, style: .continuous)
+                    .fill(Color.obsAccentV2)
+            )
+            .opacity(isEnabled ? (configuration.isPressed ? 0.8 : 1.0) : 0.5)
+    }
+}
+
+/// Sekundärer Button-Style (umrandet)
+struct OBSSecondaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.obsBody.weight(.medium))
+            .foregroundStyle(Color.obsAccentV2)
+            .padding(.horizontal, OBSSpacing.xl)
+            .padding(.vertical, OBSSpacing.lg)
+            .background(
+                RoundedRectangle(cornerRadius: OBSCornerRadius.medium, style: .continuous)
+                    .stroke(Color.obsAccentV2, lineWidth: 1.5)
+            )
+            .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1.0) : 0.5)
+    }
+}
+
+/// Tertiärer Button-Style (nur Text, kein Hintergrund)
+struct OBSTertiaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.obsFootnote.weight(.semibold))
+            .foregroundStyle(Color.obsAccentV2)
+            .opacity(configuration.isPressed ? 0.6 : 1.0)
+    }
+}
+
+/// Destruktiver Button-Style (für Lösch-Aktionen)
+struct OBSDestructiveButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.obsBody.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, OBSSpacing.xl)
+            .padding(.vertical, OBSSpacing.lg)
+            .background(
+                RoundedRectangle(cornerRadius: OBSCornerRadius.medium, style: .continuous)
+                    .fill(Color.obsDangerV2)
+            )
+            .opacity(isEnabled ? (configuration.isPressed ? 0.8 : 1.0) : 0.5)
+    }
+}
+
+extension ButtonStyle where Self == OBSPrimaryButtonStyle {
+    static var obsPrimary: OBSPrimaryButtonStyle { OBSPrimaryButtonStyle() }
+}
+
+extension ButtonStyle where Self == OBSSecondaryButtonStyle {
+    static var obsSecondary: OBSSecondaryButtonStyle { OBSSecondaryButtonStyle() }
+}
+
+extension ButtonStyle where Self == OBSTertiaryButtonStyle {
+    static var obsTertiary: OBSTertiaryButtonStyle { OBSTertiaryButtonStyle() }
+}
+
+extension ButtonStyle where Self == OBSDestructiveButtonStyle {
+    static var obsDestructive: OBSDestructiveButtonStyle { OBSDestructiveButtonStyle() }
 }

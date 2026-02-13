@@ -37,13 +37,21 @@ struct OBSUploadResult {
 ///
 /// Design:
 /// - Als Singleton (`shared`) implementiert, damit man es einfach überall aufrufen kann.
-final class OBSUploader {
+final class OBSUploader: NSObject {
 
     /// Singleton-Instanz für bequemen Zugriff.
     static let shared = OBSUploader()
 
     /// Private init verhindert, dass mehrere Instanzen erstellt werden.
-    private init() {}
+    private override init() {
+        super.init()
+    }
+
+    /// Callback für Upload-Fortschritt (0.0 - 1.0)
+    private var progressHandler: ((Double) -> Void)?
+
+    /// Continuation für async/await mit Delegate
+    private var uploadContinuation: CheckedContinuation<(Data, URLResponse), Error>?
 
     // =====================================================
     // MARK: - Errors
@@ -149,6 +157,94 @@ final class OBSUploader {
     }
 
     // =====================================================
+    // MARK: - Upload with Progress
+    // =====================================================
+
+    /// Lädt eine Track-Datei mit Fortschrittsanzeige hoch.
+    ///
+    /// - Parameters:
+    ///   - fileURL: Lokale URL zur Datei
+    ///   - baseUrl: Basis-URL des OBS-Portals
+    ///   - apiKey: API-Key für den Server
+    ///   - onProgress: Callback mit Upload-Fortschritt (0.0 - 1.0)
+    ///
+    /// - Returns: OBSUploadResult mit HTTP-Statuscode und Antwort-Body.
+    func uploadTrack(
+        fileURL: URL,
+        baseUrl: String,
+        apiKey: String,
+        onProgress: @escaping (Double) -> Void
+    ) async throws -> OBSUploadResult {
+
+        // 1) Basis-URL normalisieren
+        let urlString = normalizeObsUrl(baseUrl)
+        guard let url = URL(string: urlString) else {
+            throw UploadError.invalidURL
+        }
+
+        // 2) Datei laden
+        let fileData = try Data(contentsOf: fileURL)
+
+        // 3) Boundary erzeugen
+        let boundary = "Boundary-\(UUID().uuidString)"
+
+        // 4) Request konfigurieren
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("OBSUserId \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        // 5) Multipart-Body zusammenbauen
+        var body = Data()
+        let lineBreak = "\r\n"
+        body.append("--\(boundary)\(lineBreak)")
+        body.append("Content-Disposition: form-data; name=\"body\"; filename=\"\(fileURL.lastPathComponent)\"\(lineBreak)")
+        body.append("Content-Type: application/octet-stream\(lineBreak)\(lineBreak)")
+        body.append(fileData)
+        body.append(lineBreak)
+        body.append("--\(boundary)--\(lineBreak)")
+
+        // 6) Upload mit Progress-Tracking
+        self.progressHandler = onProgress
+
+        let (data, response) = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(Data, URLResponse), Error>) in
+            self.uploadContinuation = continuation
+
+            let session = URLSession(
+                configuration: .default,
+                delegate: self,
+                delegateQueue: .main
+            )
+
+            let task = session.uploadTask(with: request, from: body) { data, response, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else if let data = data, let response = response {
+                    continuation.resume(returning: (data, response))
+                } else {
+                    continuation.resume(throwing: UploadError.noHTTPResponse)
+                }
+            }
+            task.resume()
+        }
+
+        self.progressHandler = nil
+        self.uploadContinuation = nil
+
+        // 7) Response prüfen
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw UploadError.noHTTPResponse
+        }
+
+        let responseBody = String(data: data, encoding: .utf8) ?? ""
+
+        return OBSUploadResult(
+            statusCode: httpResponse.statusCode,
+            responseBody: responseBody
+        )
+    }
+
+    // =====================================================
     // MARK: - URL Normalisierung
     // =====================================================
 
@@ -173,6 +269,24 @@ final class OBSUploader {
         }
 
         return url
+    }
+}
+
+// =====================================================
+// MARK: - URLSessionTaskDelegate (Progress Tracking)
+// =====================================================
+
+extension OBSUploader: URLSessionTaskDelegate {
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didSendBodyData bytesSent: Int64,
+        totalBytesSent: Int64,
+        totalBytesExpectedToSend: Int64
+    ) {
+        guard totalBytesExpectedToSend > 0 else { return }
+        let progress = Double(totalBytesSent) / Double(totalBytesExpectedToSend)
+        progressHandler?(progress)
     }
 }
 
