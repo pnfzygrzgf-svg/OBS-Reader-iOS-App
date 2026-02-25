@@ -117,6 +117,30 @@ struct ContentView: View {
                         isExpanded: $showHandlebarSettings
                     )
 
+                    // Sensoren tauschen
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle(isOn: $bt.sensorsSwapped) {
+                            HStack {
+                                Image(systemName: "arrow.left.arrow.right")
+                                    .foregroundStyle(.secondary)
+                                Text("Sensoren vertauscht")
+                                    .font(.obsBody)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+
+                        if bt.sensorsSwapped {
+                            Text("Links und Rechts sind getauscht. Aktivieren, wenn der Sensor verkehrt herum montiert ist.")
+                                .font(.obsCaption)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 16)
+                                .padding(.bottom, 12)
+                        }
+                    }
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
                     // Standort-Hinweis (falls nötig)
                     if !bt.isLocationEnabled || !bt.hasLocationAlwaysPermission {
                         LocationPermissionHintView()

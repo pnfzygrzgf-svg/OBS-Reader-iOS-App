@@ -137,6 +137,12 @@ final class BluetoothManager: NSObject, ObservableObject {
         }
     }
 
+    @Published var sensorsSwapped: Bool = false {
+        didSet {
+            UserDefaults.standard.set(sensorsSwapped, forKey: "sensorsSwapped")
+        }
+    }
+
     @Published var currentOvertakeCount: Int = 0
     @Published var currentDistanceMeters: Double = 0
 
@@ -203,6 +209,8 @@ final class BluetoothManager: NSObject, ObservableObject {
 
         let stored = UserDefaults.standard.integer(forKey: "handlebarWidthCm")
         if stored != 0 { handlebarWidthCm = stored }
+
+        sensorsSwapped = UserDefaults.standard.bool(forKey: "sensorsSwapped")
 
         central = CBCentralManager(
             delegate: self,
@@ -1082,10 +1090,38 @@ extension BluetoothManager: CBPeripheralDelegate {
     // -------------------------------------------------
 
     private func handleLiteUpdate(_ data: Data) {
-        // Debug-Logs entfernt für Performance
+        // --- TEMP DEBUG: Rohe BLE-Bytes loggen ---
+        if case .distanceMeasurement(let dmRaw) = (try? Openbikesensor_Event(serializedData: data))?.content {
+            let hex = data.map { String(format: "%02x", $0) }.joined()
+            if dmRaw.distance == 0.0 {
+                print("🔴 BLE RAW ZERO: sid=\(dmRaw.sourceID) dist=\(dmRaw.distance) bytes=\(data.count) hex=\(hex)")
+            } else {
+                print("🟢 BLE RAW OK:   sid=\(dmRaw.sourceID) dist=\(dmRaw.distance) bytes=\(data.count)")
+            }
+        }
+        // --- END TEMP DEBUG ---
 
         do {
-            let event = try Openbikesensor_Event(serializedData: data)
+            var event = try Openbikesensor_Event(serializedData: data)
+
+            // --- TEMP DEBUG: Nach swap loggen ---
+            if case .distanceMeasurement(let dmBefore) = event.content, dmBefore.distance == 0.0 {
+                print("🔴 PRE-SWAP ZERO: sid=\(dmBefore.sourceID) dist=\(dmBefore.distance)")
+            }
+            // --- END TEMP DEBUG ---
+
+            // Sensoren tauschen wenn aktiviert (sourceID 1 ↔ 2)
+            if sensorsSwapped, case .distanceMeasurement(var dm) = event.content {
+                if dm.sourceID == 1 { dm.sourceID = 2 }
+                else if dm.sourceID == 2 { dm.sourceID = 1 }
+                event.distanceMeasurement = dm
+            }
+
+            // --- TEMP DEBUG: Nach swap loggen ---
+            if case .distanceMeasurement(let dmAfter) = event.content, dmAfter.distance == 0.0 {
+                print("🔴 POST-SWAP ZERO: sid=\(dmAfter.sourceID) dist=\(dmAfter.distance)")
+            }
+            // --- END TEMP DEBUG ---
 
             ui {
                 self.lastEvent = event
@@ -1095,6 +1131,12 @@ extension BluetoothManager: CBPeripheralDelegate {
 
             // BIN schreiben nur wenn Lite-Aufnahme läuft
             if isRecording, recordingDeviceType == .lite {
+                // DistanceMeasurement ohne distance-Feld nicht schreiben
+                // (Proto3 Default 0.0 vergiftet das min() im Portal)
+                if case .distanceMeasurement(let dm) = event.content, dm.distance <= 0.0 {
+                    return
+                }
+
                 // UserInput-Events nur schreiben wenn beide Sensoren Messungen im 5s-Fenster haben
                 // (Portal benötigt min() beider Sensoren, crasht sonst mit "min() iterable argument is empty")
                 if case .userInput(_) = event.content {
@@ -1142,10 +1184,12 @@ extension BluetoothManager: CBPeripheralDelegate {
     func handleClassicDistanceUpdate(_ data: Data) {
         guard let packet = parseClassicPacket(data) else { return }
 
-        // Debug-Log entfernt für Performance
+        // Sensoren tauschen wenn aktiviert
+        let effectiveLeft  = sensorsSwapped ? packet.rightCm : packet.leftCm
+        let effectiveRight = sensorsSwapped ? packet.leftCm  : packet.rightCm
 
-        let leftMeters: Double?  = (packet.leftCm  == 0xFFFF) ? nil : Double(packet.leftCm)  / 100.0
-        let rightMeters: Double? = (packet.rightCm == 0xFFFF) ? nil : Double(packet.rightCm) / 100.0
+        let leftMeters: Double?  = (effectiveLeft  == 0xFFFF) ? nil : Double(effectiveLeft)  / 100.0
+        let rightMeters: Double? = (effectiveRight == 0xFFFF) ? nil : Double(effectiveRight) / 100.0
 
         // Preview/State: wie gehabt als DistanceMeasurement Events „simulieren"
         if let dist = leftMeters {
@@ -1180,8 +1224,8 @@ extension BluetoothManager: CBPeripheralDelegate {
 
         // CSV schreiben nur wenn Classic-Aufnahme läuft
         if recordingDeviceType == .classic, isRecording {
-            let left = (packet.leftCm  == 0xFFFF) ? nil : packet.leftCm
-            let right = (packet.rightCm == 0xFFFF) ? nil : packet.rightCm
+            let left = (effectiveLeft  == 0xFFFF) ? nil : effectiveLeft
+            let right = (effectiveRight == 0xFFFF) ? nil : effectiveRight
             classicCsvRecorder?.recordMeasurement(
                 leftCm: left,
                 rightCm: right,
@@ -1195,14 +1239,18 @@ extension BluetoothManager: CBPeripheralDelegate {
     func handleClassicButtonUpdate(_ data: Data) {
         guard let packet = parseClassicPacket(data) else { return }
 
+        // Sensoren tauschen wenn aktiviert
+        let effectiveLeft  = sensorsSwapped ? packet.rightCm : packet.leftCm
+        let effectiveRight = sensorsSwapped ? packet.leftCm  : packet.rightCm
+
         // Debug-Log entfernt für Performance
 
         ui { self.handleUserInputPreview() }
 
         // CSV schreiben nur wenn Classic-Aufnahme läuft
         if recordingDeviceType == .classic, isRecording {
-            let left = (packet.leftCm  == 0xFFFF) ? nil : packet.leftCm
-            let right = (packet.rightCm == 0xFFFF) ? nil : packet.rightCm
+            let left = (effectiveLeft  == 0xFFFF) ? nil : effectiveLeft
+            let right = (effectiveRight == 0xFFFF) ? nil : effectiveRight
             classicCsvRecorder?.recordMeasurement(
                 leftCm: left,
                 rightCm: right,
