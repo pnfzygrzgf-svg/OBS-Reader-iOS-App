@@ -14,13 +14,6 @@ Die App ist mittels *Vibecoding* erstellt worden. **Don't trust verify!**
 
 Der OBS-Lite kommuniziert über BLE mit dem iPhone. Dazu muss die angepasste Firmware auf dem ESP installiert werden: https://github.com/pnfzygrzgf-svg/firmware-lite
 
-# Screenshots
-<img width="240" height="2556" alt="IMG_4071 cleaned" src="https://github.com/user-attachments/assets/fb4debbd-9630-4882-90e5-862327589976" />
-<img width="240" height="2556" alt="IMG_4072 cleaned" src="https://github.com/user-attachments/assets/6f20cd0b-0e36-412f-aa05-80fe1b123d5f" />
-<img width="240" height="2556" alt="IMG_4076 cleaned" src="https://github.com/user-attachments/assets/2ea515e9-7fc7-44f1-85b2-c45f25e8cc0f" />
-<img width="240" height="2556" alt="IMG_4075 cleaned" src="https://github.com/user-attachments/assets/509ede93-c189-472e-85c5-27fe3cfa3f10" />
-<img width="240" height="2556" alt="IMG_4074 cleaned" src="https://github.com/user-attachments/assets/a91777d1-25ca-4e41-9e7c-218f66064c62" />
-<img width="240" height="2556" alt="IMG_4073 cleaned" src="https://github.com/user-attachments/assets/be818728-953f-4e21-a8de-7a54229c27f2" />
 
 # Download und Installation der App
 
