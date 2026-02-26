@@ -1131,12 +1131,6 @@ extension BluetoothManager: CBPeripheralDelegate {
 
             // BIN schreiben nur wenn Lite-Aufnahme läuft
             if isRecording, recordingDeviceType == .lite {
-                // DistanceMeasurement ohne distance-Feld nicht schreiben
-                // (Proto3 Default 0.0 vergiftet das min() im Portal)
-                if case .distanceMeasurement(let dm) = event.content, dm.distance <= 0.0 {
-                    return
-                }
-
                 // UserInput-Events nur schreiben wenn beide Sensoren Messungen im 5s-Fenster haben
                 // (Portal benötigt min() beider Sensoren, crasht sonst mit "min() iterable argument is empty")
                 if case .userInput(_) = event.content {
