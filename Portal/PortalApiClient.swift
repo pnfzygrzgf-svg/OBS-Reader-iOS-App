@@ -369,9 +369,8 @@ final class PortalApiClient {
         }
 
         if data.isEmpty {
-            if T.self == PortalTrackListResponse.self {
-                let empty = PortalTrackListResponse(trackCount: 0, tracks: [], skippedTracksCount: 0)
-                return empty as! T
+            if let empty = PortalTrackListResponse(trackCount: 0, tracks: [], skippedTracksCount: 0) as? T {
+                return empty
             }
             throw PortalApiError.httpError(
                 status: http.statusCode,

@@ -41,6 +41,19 @@
 		<string>location</string>
 	</array>
 
+	<!-- Supported orientations (iPad requires all four for multitasking) -->
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+
 	<!-- Launch screen -->
 	<key>UILaunchScreen</key>
 	<dict>

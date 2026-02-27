@@ -134,6 +134,7 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         // letzte Position veröffentlichen (z.B. für UI/Debug)
         DispatchQueue.main.async {
             self.lastLocation = loc
+            self.lastLocationError = nil
         }
 
         // Weiterreichen an BluetoothManager:
@@ -142,9 +143,15 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         bluetoothManager?.handleLocationUpdate(loc)
     }
 
+    /// Letzte GPS-Fehlermeldung (für UI-Anzeige)
+    @Published var lastLocationError: String?
+
     /// Fehler-Callback vom CoreLocation-Manager (z.B. kein GPS, Timeout, denied).
     func locationManager(_ manager: CLLocationManager,
                          didFailWithError error: Error) {
         print("LocationManager error: \(error)")
+        DispatchQueue.main.async {
+            self.lastLocationError = error.localizedDescription
+        }
     }
 }

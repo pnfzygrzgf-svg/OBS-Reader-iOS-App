@@ -404,18 +404,8 @@ final class BluetoothManager: NSObject, ObservableObject {
             return
         }
 
-        ui {
-            self.currentOvertakeCount = 0
-            self.currentDistanceMeters = 0
-            self.lastLocation = nil
-
-            self.liveOvertakeEvents.removeAll()
-            self.lastOvertakeAt = nil
-
-            self.isRecording = true
-            self.recordingStartTime = Date()
-        }
-
+        // Session ZUERST öffnen, bevor isRecording = true gesetzt wird.
+        // Sonst könnten BLE-Daten ankommen und auf ein noch nicht geöffnetes File-Handle schreiben.
         recordingDeviceType = t
 
         switch t {
@@ -432,6 +422,19 @@ final class BluetoothManager: NSObject, ObservableObject {
             )
             classicCsvRecorder = recorder
             recorder.startSession()
+        }
+
+        // Erst NACH Session-Start den UI-State setzen
+        ui {
+            self.currentOvertakeCount = 0
+            self.currentDistanceMeters = 0
+            self.lastLocation = nil
+
+            self.liveOvertakeEvents.removeAll()
+            self.lastOvertakeAt = nil
+
+            self.isRecording = true
+            self.recordingStartTime = Date()
         }
 
         if #available(iOS 16.1, *) {
@@ -1092,25 +1095,8 @@ extension BluetoothManager: CBPeripheralDelegate {
     // -------------------------------------------------
 
     private func handleLiteUpdate(_ data: Data) {
-        // --- TEMP DEBUG: Rohe BLE-Bytes loggen ---
-        if case .distanceMeasurement(let dmRaw) = (try? Openbikesensor_Event(serializedData: data))?.content {
-            let hex = data.map { String(format: "%02x", $0) }.joined()
-            if dmRaw.distance == 0.0 {
-                print("🔴 BLE RAW ZERO: sid=\(dmRaw.sourceID) dist=\(dmRaw.distance) bytes=\(data.count) hex=\(hex)")
-            } else {
-                print("🟢 BLE RAW OK:   sid=\(dmRaw.sourceID) dist=\(dmRaw.distance) bytes=\(data.count)")
-            }
-        }
-        // --- END TEMP DEBUG ---
-
         do {
             var event = try Openbikesensor_Event(serializedData: data)
-
-            // --- TEMP DEBUG: Nach swap loggen ---
-            if case .distanceMeasurement(let dmBefore) = event.content, dmBefore.distance == 0.0 {
-                print("🔴 PRE-SWAP ZERO: sid=\(dmBefore.sourceID) dist=\(dmBefore.distance)")
-            }
-            // --- END TEMP DEBUG ---
 
             // Sensoren tauschen wenn aktiviert (sourceID 1 ↔ 2)
             if sensorsSwapped, case .distanceMeasurement(var dm) = event.content {
@@ -1118,12 +1104,6 @@ extension BluetoothManager: CBPeripheralDelegate {
                 else if dm.sourceID == 2 { dm.sourceID = 1 }
                 event.distanceMeasurement = dm
             }
-
-            // --- TEMP DEBUG: Nach swap loggen ---
-            if case .distanceMeasurement(let dmAfter) = event.content, dmAfter.distance == 0.0 {
-                print("🔴 POST-SWAP ZERO: sid=\(dmAfter.sourceID) dist=\(dmAfter.distance)")
-            }
-            // --- END TEMP DEBUG ---
 
             ui {
                 self.lastEvent = event

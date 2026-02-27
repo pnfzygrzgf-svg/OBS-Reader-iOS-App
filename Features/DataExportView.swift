@@ -594,6 +594,9 @@ struct DataExportView: View {
 
                 // Share-Sheet präsentieren (UIKit direkt)
                 presentShareSheet(for: tempURL) {
+                    // Temp-Datei aufräumen
+                    try? FileManager.default.removeItem(at: tempURL)
+
                     Task { @MainActor in
                         withAnimation { isPreparingShare = false }
                     }

@@ -54,7 +54,7 @@ final class ClassicCsvRecorder {
     private lazy var csvDateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.timeZone = TimeZone(secondsFromGMT: 0)
-        f.locale = Locale(identifier: "de_DE")
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "dd.MM.yyyy"
         return f
     }()
@@ -62,7 +62,7 @@ final class ClassicCsvRecorder {
     private lazy var csvTimeFormatter: DateFormatter = {
         let f = DateFormatter()
         f.timeZone = TimeZone(secondsFromGMT: 0)
-        f.locale = Locale(identifier: "de_DE")
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "HH:mm:ss"
         return f
     }()
@@ -144,8 +144,12 @@ final class ClassicCsvRecorder {
                 let headerLine = genCSVHeader(maxMeasurements: maxMeasurementsPerLine)
 
                 // Zeilen schreiben (jeweils mit newline)
-                try fh.write(contentsOf: (metadataLine + "\n").data(using: .utf8)!)
-                try fh.write(contentsOf: (headerLine + "\n").data(using: .utf8)!)
+                if let metaData = (metadataLine + "\n").data(using: .utf8) {
+                    try fh.write(contentsOf: metaData)
+                }
+                if let headerData = (headerLine + "\n").data(using: .utf8) {
+                    try fh.write(contentsOf: headerData)
+                }
 
                 print("ClassicCsvRecorder: startSession -> \(file.path)")
             } catch {
@@ -397,7 +401,7 @@ final class ClassicCsvRecorder {
             // Kommentar im Code: Spezifikation sagt km/h, aber wie in Flutter-App wird m/s genutzt.
             speedStr = loc.speed >= 0 ? String(loc.speed) : ""
 
-            // horizontalAccuracy dient hier als HDOP-ähnlicher Wert
+            // iOS liefert kein echtes HDOP; horizontalAccuracy (Meter) als Näherung
             hdopStr = String(loc.horizontalAccuracy)
 
             // iOS liefert Satellitenanzahl nicht direkt → leer

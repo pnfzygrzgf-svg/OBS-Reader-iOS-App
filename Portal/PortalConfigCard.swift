@@ -53,8 +53,10 @@ struct PortalConfigCardView: View {
 
         guard !urlString.isEmpty, !keyString.isEmpty else { return false }
         guard let components = URLComponents(string: urlString),
-              let url = components.url,
-              !url.absoluteString.isEmpty
+              let scheme = components.scheme?.lowercased(),
+              scheme == "https",
+              let host = components.host,
+              !host.isEmpty
         else { return false }
 
         return true

@@ -60,7 +60,13 @@ struct LocalTrackParser {
             guard let decoded = COBS.decode(frame) else { continue }
 
             // Protobuf parsen
-            guard let event = try? Openbikesensor_Event(serializedBytes: decoded) else { continue }
+            let event: Openbikesensor_Event
+            do {
+                event = try Openbikesensor_Event(serializedBytes: decoded)
+            } catch {
+                print("LocalTrackParser: Protobuf decode error: \(error)")
+                continue
+            }
 
             measurementCount += 1
 

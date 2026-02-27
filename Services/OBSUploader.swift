@@ -212,13 +212,20 @@ final class OBSUploader: NSObject {
         let (data, response) = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(Data, URLResponse), Error>) in
             self.uploadContinuation = continuation
 
+            let config = URLSessionConfiguration.default
+            config.timeoutIntervalForRequest = 30
+            config.timeoutIntervalForResource = 300
+
             let session = URLSession(
-                configuration: .default,
+                configuration: config,
                 delegate: self,
                 delegateQueue: .main
             )
 
             let task = session.uploadTask(with: request, from: body) { data, response, error in
+                // Session invalidieren um Retain-Cycle auf Delegate (self) zu brechen
+                session.finishTasksAndInvalidate()
+
                 if let error = error {
                     continuation.resume(throwing: error)
                 } else if let data = data, let response = response {
